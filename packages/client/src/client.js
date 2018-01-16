@@ -114,9 +114,10 @@ class MicropedeClient {
     this.subscriptions = [];
     this.router = new RouteRecognizer();
     return new Promise((resolve, reject) => {
-      this.client.disconnectClient(true, () => {
+      this.client.end(true, () => {
         this.off(this.onConnect);
         this.off(this.onMessage);
+        resolve();
       });
     });
   }
@@ -148,4 +149,4 @@ class MicropedeClient {
   }
 }
 
-module.exports = MicropedeClient;
+module.exports = {MicropedeClient, GenerateClientId};

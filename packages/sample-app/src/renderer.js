@@ -1,6 +1,9 @@
 const yo = require('yo-yo');
-const MicropedeClient = require('@micropede/client/src/client.js');
+const {MicropedeClient, GenerateClientId} = require('@micropede/client/src/client.js');
 const MicropedeAsync  = require('@micropede/client/src/async.js');
+
+window.MicropedeAsync = MicropedeAsync;
+
 const Broker = require('@micropede/broker/src/index.js');
 
 const broker = new Broker('sample-app');
@@ -17,7 +20,6 @@ class MessageLogger extends MicropedeClient {
   }
   logOutput(payload, params) {
     this.messageLog.appendChild(yo`<li>${params.pluginName}, ${params.val}, ${payload}</li>`);
-    console.log({payload, params});
   }
 }
 

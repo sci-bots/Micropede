@@ -1,14 +1,17 @@
 /* Launch MicropedeClients asynchronously */
 const _ = require('lodash');
 const uuidv4 = require('uuid/v4');
-const MicropedeClient = require('./client.js');
+const {MicropedeClient, GenerateClientId} = require('./client.js');
 const DEFAULT_TIMEOUT = 5000;
 
 class MicropedeAsync extends MicropedeClient {
   constructor(appName, host="localhost", port=1883, version='0.0.0') {
+    if (appName == undefined) throw "appName undefined";
+    
     const name = `micropede-async-${uuidv4()}`;
     super(appName, host, port, name);
     this.version = version;
+    this.listen = _.noop;
   }
   async reset() {
     /* Reset the state of the client (use between actions)*/
@@ -32,7 +35,7 @@ class MicropedeAsync extends MicropedeClient {
 
   async getState(sender, prop, timeout=DEFAULT_TIMEOUT) {
     /* Get the state of another plugins property */
-    const LABEL = `${this.appName}::getState`;
+    const label = `${this.appName}::getState`;
     const topic = `${this.appName}/${sender}/state/${prop}`;
     let done = false;
     try {
@@ -50,11 +53,11 @@ class MicropedeAsync extends MicropedeClient {
           resolve(payload);
         });
         this.setTimeout(timeout).then((d) => {
-          if (!done) reject([LABEL, `timeout ${timeout}ms`]);
+          if (!done) reject([label, `timeout ${timeout}ms`]);
         });
       });
     } catch (e) {
-      throw(this.dumpStack([LABEL, topic], e));
+      throw(this.dumpStack([label, topic], e));
     }
   }
 
@@ -88,7 +91,7 @@ class MicropedeAsync extends MicropedeClient {
 
   async callAction(receiver, action, val, msgType='trigger', timeout=DEFAULT_TIMEOUT) {
     /* Call action (either trigger or put) and await notification */
-    const LABEL = `${this.appName}::callAction::${msgType}`;
+    const label = `${this.appName}::callAction::${msgType}`;
 
     // Remove the timeout if set to -1 (some actions may not notify immediately)
     let noTimeout = false;
@@ -112,7 +115,7 @@ class MicropedeAsync extends MicropedeClient {
       this.enforceSingleSubscription(label, topic);
       await this.reset();
     } catch (e) {
-      throw(this.dumpStack([LABEL, topic], e));
+      throw(this.dumpStack([label, topic], e));
     }
 
     // Await for notifiaton from the receiving plugin
@@ -121,18 +124,18 @@ class MicropedeAsync extends MicropedeClient {
         done = true;
         if (payload.status) {
           if (payload.status != 'success') {
-            reject(_.flattenDeep([LABEL, _.get(payload, 'response')]));
+            reject(_.flattenDeep([label, _.get(payload, 'response')]));
             return;
           }
         } else {
-          console.warn([LABEL, "message did not contain status"]);
+          console.warn([label, "message did not contain status"]);
         }
         resolve(payload);
       });
 
       // Cause the notification to fail after given timeout
       this.setTimeout(timeout).then((d) => {
-        if (!done) reject([LABEL, `timeout ${timeout}ms`]);
+        if (!done) reject([label, `timeout ${timeout}ms`]);
       });
     });
 
@@ -156,3 +159,5 @@ class MicropedeAsync extends MicropedeClient {
   }
 
 }
+
+module.exports = MicropedeAsync;

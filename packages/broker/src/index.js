@@ -45,8 +45,8 @@ class MicropedeBroker {
     const [name, path, app, uid] = client.id.split(">>");
     if (!name) return;
 
-    if (!_.includes(name, 'micropede-client') && name != 'undefined'){
-      console.log('client connected', {name});
+    if (!_.includes(name, 'micropede-async') && name != 'undefined'){
+      console.log('client connected', name);
     }
 
     if (path != undefined){
