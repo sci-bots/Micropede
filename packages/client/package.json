@@ -1,0 +1,23 @@
+{
+  "name": "@micropede/client",
+  "version": "0.0.0",
+  "description": "Web based JS client for Micropede Application Framework",
+  "main": "src/client.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Micropede",
+    "Web",
+    "Client"
+  ],
+  "dependencies": {
+    "@micropede/mixins": "^0.0.0",
+    "lodash": "^4.17.4",
+    "mqtt": "^2.15.1",
+    "route-recognizer": "^0.3.3",
+    "uuid": "^3.1.0"
+  },
+  "author": "Sci-Bots",
+  "license": "BSD-2-Clause"
+}
