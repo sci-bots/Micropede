@@ -18,5 +18,8 @@
     "@micropede/broker": "^0.0.1",
     "@micropede/client": "^0.0.1",
     "yo-yo": "^1.4.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

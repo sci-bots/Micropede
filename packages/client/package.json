@@ -19,5 +19,8 @@
     "uuid": "^3.1.0"
   },
   "author": "Sci-Bots",
-  "license": "BSD-2-Clause"
+  "license": "BSD-2-Clause",
+  "publishConfig": {
+    "access": "public"
+  }
 }

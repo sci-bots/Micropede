@@ -11,5 +11,8 @@
     "Mixins"
   ],
   "author": "Sci-Bots",
-  "license": "BSD-2-Clause"
+  "license": "BSD-2-Clause",
+  "publishConfig": {
+    "access": "public"
+  }
 }

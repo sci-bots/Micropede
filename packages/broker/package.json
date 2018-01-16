@@ -18,5 +18,8 @@
     "level-js": "^2.2.4",
     "lodash": "^4.17.4",
     "mosca": "^2.7.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
