@@ -89,7 +89,7 @@ class MicropedeAsync {
 
   async callAction(receiver, action, val, msgType='trigger', timeout=DEFAULT_TIMEOUT) {
     /* Call action (either trigger or put) and await notification */
-    const label = `${this.client.appName}::callAction::${msgType}`;
+    const label = `${this.client.appName}::callAction::${msgType}::${action}`;
 
     // Remove the timeout if set to -1 (some actions may not notify immediately)
     let noTimeout = false;
@@ -99,14 +99,12 @@ class MicropedeAsync {
       noTimeout = true;
     }
 
-    // Create a mqtt topic based on type, receiver, and action
-    const topic = `microdrop/${msgType}/${receiver}/${action}`;
-    // Create the expected notification mqtt endpoint
-    const sub = `microdrop/${receiver}/notify/${this.client.name}`;
-
     // Setup header
-    _.set("__head__.plugin_name", this.client.name);
-    _.set("__head__.version", this.client.version);
+    _.set(val, "__head__.plugin_name", this.client.name);
+    _.set(val, "__head__.version", this.client.version);
+
+    // Create a mqtt topic based on type, receiver, and action
+    const topic = `${this.client.appName}/${msgType}/${receiver}/${action}`;
 
     // Reset the state of the MicropedeAsync client
     try {
@@ -130,6 +128,8 @@ class MicropedeAsync {
         }
         resolve(payload);
       });
+
+      this.client.sendMessage(topic, val);
 
       // Cause the notification to fail after given timeout
       this.setTimeout(timeout).then((d) => {

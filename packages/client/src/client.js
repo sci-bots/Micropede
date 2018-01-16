@@ -31,6 +31,24 @@ function GenerateClientId(name, appName, path='unknown'){
   return `${name}>>${path}>>${appName}>>${uuidv4()}`;
 }
 
+function WrapData(key, value, name, version) {
+  /* Reform messages to objects and add header*/
+
+  let msg = {};
+  if (typeof(value) == "object" && value !== null) msg = value;
+  else msg[key] = value;
+
+  msg.__head__ = {};
+  msg.__head__.plugin_name = name;
+  msg.__head__.plugin_version = version;
+
+  return msg;
+}
+
+function GetReceiver(payload) {
+  return _.get(payload, "__head__.plugin_name");
+}
+
 function getClassName(instance) {
   /* ex. DeviceUIPlugin => device-ui-plugin */
   return encodeURI(decamelize(instance.constructor.name));
@@ -103,20 +121,18 @@ class MicropedeClient {
     return this.notifySender(payload, this.subscriptions, "get-subscriptions");
   }
 
-  getReceiver(payload) {
-    return _.get(payload, "__head__.plugin_name");
-  }
-
   notifySender(payload, response, endpoint, status='success') {
     if (status != 'success') {
       console.error("ERROR:", _.flattenDeep([response]));
       response = _.flattenDeep(response);
     }
-    const receiver = this.getReceiver(payload);
+    const receiver = GetReceiver(payload);
     if (!receiver) {return response}
     this.sendMessage(
-      `microdrop/${this.name}/notify/${receiver}/${endpoint}`,
-      this.wrapData(null, {status: status, response: response}));
+      `${this.appName}/${this.name}/notify/${receiver}/${endpoint}`,
+      WrapData(null, {status, response}, this.name, this.version)
+    );
+
     return response;
   }
 
