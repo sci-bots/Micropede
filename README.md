@@ -1,4 +1,6 @@
-# Micropede
+<p align="center">
+  <img alt="micropede" src="https://raw.githubusercontent.com/sci-bots/Micropede/master/docs/images/temp-logo.png">
+</p>
 
 Micropede is an Application framework for handling multi-process and/or multi-language plugin architectures. Micropede is built ontop of Mosca js and MQTT js.
 
