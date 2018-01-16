@@ -37,13 +37,12 @@ function getClassName(instance) {
 }
 
 class MicropedeClient {
-  constructor(appName, host="localhost", port=1883, name) {
+  constructor(appName, host="localhost", port=1883, name, version='0.0.0') {
     _.extend(this, backbone.Events);
     _.extend(this, MqttMessages);
     var name = name || getClassName(this);
     const clientId = GenerateClientId(name, appName);
 
-    this.connectClient(clientId, host, port);
     this.connectClient(clientId, host, port);
 
     this.router = new RouteRecognizer();
@@ -53,6 +52,8 @@ class MicropedeClient {
     this.subscriptions = [];
     this.host = host;
     this.port = port;
+    this.version = version;
+    this.listen = _.noop;
   }
 
   addBinding(channel, event, retain=false, qos=0, dup=false) {
@@ -97,14 +98,40 @@ class MicropedeClient {
     });
   }
 
+  getSubscriptions(payload, name) {
+    const LABEL = `${this.appName}::getSubscriptions`;
+    return this.notifySender(payload, this.subscriptions, "get-subscriptions");
+  }
+
+  getReceiver(payload) {
+    return _.get(payload, "__head__.plugin_name");
+  }
+
+  notifySender(payload, response, endpoint, status='success') {
+    if (status != 'success') {
+      console.error("ERROR:", _.flattenDeep([response]));
+      response = _.flattenDeep(response);
+    }
+    const receiver = this.getReceiver(payload);
+    if (!receiver) {return response}
+    this.sendMessage(
+      `microdrop/${this.name}/notify/${receiver}/${endpoint}`,
+      this.wrapData(null, {status: status, response: response}));
+    return response;
+  }
+
+
   connectClient(clientId, host, port) {
     this.client = mqtt.connect(`mqtt://${host}:${port}`, {clientId});
     return new Promise((resolve, reject) => {
       this.client.on("connect", () => {
         // XXX: Manually setting client.connected state
         this.client.connected = true;
-        this.listen();
-        resolve(true);
+        this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
+          this.listen();
+          this.defaultSubCount = this.subscriptions.length;
+          resolve(true);
+        });
       });
       this.client.on("message", this.onMessage.bind(this));
     });

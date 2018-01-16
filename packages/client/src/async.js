@@ -4,24 +4,22 @@ const uuidv4 = require('uuid/v4');
 const {MicropedeClient, GenerateClientId} = require('./client.js');
 const DEFAULT_TIMEOUT = 5000;
 
-class MicropedeAsync extends MicropedeClient {
+class MicropedeAsync {
   constructor(appName, host="localhost", port=1883, version='0.0.0') {
     if (appName == undefined) throw "appName undefined";
-    
     const name = `micropede-async-${uuidv4()}`;
-    super(appName, host, port, name);
-    this.version = version;
-    this.listen = _.noop;
+    this.client = new MicropedeClient(appName, host, port, name, version);
   }
   async reset() {
     /* Reset the state of the client (use between actions)*/
 
     // Generate a new clientId (so that each sub is easier to debug)
-    this.clientId = GenerateClientId(this.name, this.appName);
+    let {host, port, name, appName} = this.client;
+    this.client.clientId = GenerateClientId(name, appName);
     try {
       // Disconnect and Reconnect the MicropedeClient for this async instance
-      await this.disconnectClient();
-      await this.connectClient(this.clientId, this.host, this.port);
+      await this.client.disconnectClient();
+      await this.client.connectClient(this.client.clientId, host, port);
     } catch (e) {
       throw e;
     }
@@ -35,12 +33,12 @@ class MicropedeAsync extends MicropedeClient {
 
   async getState(sender, prop, timeout=DEFAULT_TIMEOUT) {
     /* Get the state of another plugins property */
-    const label = `${this.appName}::getState`;
-    const topic = `${this.appName}/${sender}/state/${prop}`;
+    const label = `${this.client.appName}::getState`;
+    const topic = `${this.client.appName}/${sender}/state/${prop}`;
     let done = false;
     try {
       // Fail if this client is awaiting another subscription
-      this.enforceSingleSubscription(label, topic);
+      this.enforceSingleSubscription(label);
 
       // Reset the client
       await this.reset();
@@ -48,7 +46,7 @@ class MicropedeAsync extends MicropedeClient {
       // Subscribe to a state channel of another plugin, and return
       // the first response
       return new Promise((resolve, reject) => {
-        this.onStateMsg(sender, prop, (payload, params) => {
+        this.client.onStateMsg(sender, prop, (payload, params) => {
           done = true;
           resolve(payload);
         });
@@ -91,7 +89,7 @@ class MicropedeAsync extends MicropedeClient {
 
   async callAction(receiver, action, val, msgType='trigger', timeout=DEFAULT_TIMEOUT) {
     /* Call action (either trigger or put) and await notification */
-    const label = `${this.appName}::callAction::${msgType}`;
+    const label = `${this.client.appName}::callAction::${msgType}`;
 
     // Remove the timeout if set to -1 (some actions may not notify immediately)
     let noTimeout = false;
@@ -104,15 +102,15 @@ class MicropedeAsync extends MicropedeClient {
     // Create a mqtt topic based on type, receiver, and action
     const topic = `microdrop/${msgType}/${receiver}/${action}`;
     // Create the expected notification mqtt endpoint
-    const sub = `microdrop/${receiver}/notify/${this.name}`;
+    const sub = `microdrop/${receiver}/notify/${this.client.name}`;
 
     // Setup header
-    _.set("__head__.plugin_name", this.name);
-    _.set("__head__.version", this.version);
+    _.set("__head__.plugin_name", this.client.name);
+    _.set("__head__.version", this.client.version);
 
     // Reset the state of the MicropedeAsync client
     try {
-      this.enforceSingleSubscription(label, topic);
+      this.enforceSingleSubscription(label);
       await this.reset();
     } catch (e) {
       throw(this.dumpStack([label, topic], e));
@@ -120,7 +118,7 @@ class MicropedeAsync extends MicropedeClient {
 
     // Await for notifiaton from the receiving plugin
     return new Promise((resolve, reject) => {
-      this.onNotifyMsg(receiver, action, (payload, params) => {
+      this.client.onNotifyMsg(receiver, action, (payload, params) => {
         done = true;
         if (payload.status) {
           if (payload.status != 'success') {
@@ -143,18 +141,20 @@ class MicropedeAsync extends MicropedeClient {
 
   dumpStack(label, err) {
     /* Dump stack between plugins (technique to join stack of multiple processes') */
-    this.disconnectClient();
+    this.client.disconnectClient();
     if (err.stack)
       return _.flattenDeep([label, JSON.stringify(err.stack).replace(/\\/g, "").replace(/"/g,"").split("\n")]);
     if (!err.stack)
       return _.flattenDeep([label, JSON.stringify(err).replace(/\\/g, "").replace(/"/g,"").split(",")]);
   }
 
-  enforceSingleSubscription(label, topic) {
+  enforceSingleSubscription(label) {
     /* Ensure that MicropedeAsync instances are only handling one sub at a time */
-    if (this.subscriptions.length > 1 ) {
-      throw(this.dumpStack([label, topic],
-        'only one active sub per async client'));
+    const totalSubscriptions = this.client.subscriptions.length;
+    const defaultSubscriptions = this.client.defaultSubCount;
+    if (totalSubscriptions - defaultSubscriptions > 1 ) {
+      const msg = 'only one active sub per async client';
+      throw(this.dumpStack([label, msg]));
     }
   }
 
