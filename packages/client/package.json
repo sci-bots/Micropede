@@ -1,6 +1,6 @@
 {
   "name": "@micropede/client",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Web based JS client for Micropede Application Framework",
   "main": "src/client.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "Client"
   ],
   "dependencies": {
-    "@micropede/mixins": "^0.0.2",
+    "@micropede/mixins": "^0.0.3",
     "lodash": "^4.17.4",
     "mqtt": "^2.15.1",
     "route-recognizer": "^0.3.3",
