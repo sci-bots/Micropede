@@ -17,7 +17,8 @@
     "eventemitter2": "^5.0.1",
     "level-js": "^2.2.4",
     "lodash": "^4.17.4",
-    "mosca": "^2.7.0"
+    "mosca": "git+https://github.com/mcollina/mosca.git",
+    "mqtt": "^2.15.1"
   },
   "publishConfig": {
     "access": "public"
