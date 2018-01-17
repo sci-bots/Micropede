@@ -26,17 +26,13 @@ class MicropedeAsync {
     }
   }
 
-  setTimeout(timeout) {
-    return new Promise((resolve, reject) => {
-      setTimeout(()=>{resolve()}, timeout);
-    });
-  }
-
   async getState(sender, prop, timeout=DEFAULT_TIMEOUT) {
     /* Get the state of another plugins property */
     const label = `${this.client.appName}::getState`;
     const topic = `${this.client.appName}/${sender}/state/${prop}`;
     let done = false;
+    let timer;
+
     try {
       // Fail if this client is awaiting another subscription
       this.enforceSingleSubscription(label);
@@ -48,12 +44,15 @@ class MicropedeAsync {
       // the first response
       return new Promise((resolve, reject) => {
         this.client.onStateMsg(sender, prop, (payload, params) => {
+          if (timer) clearTimeout(timer);
           done = true;
           resolve(payload);
         });
-        this.setTimeout(timeout).then((d) => {
+
+        // Reject promise once a given timeout exceeds
+        timer = setTimeout(()=>{
           if (!done) reject([label, `timeout ${timeout}ms`]);
-        });
+        }, timeout);
       });
     } catch (e) {
       throw(this.dumpStack([label, topic], e));
@@ -92,13 +91,11 @@ class MicropedeAsync {
     /* Call action (either trigger or put) and await notification */
     const label = `${this.client.appName}::callAction::${msgType}::${action}`;
 
-    // Remove the timeout if set to -1 (some actions may not notify immediately)
-    let noTimeout = false;
     let done = false;
-    if (timeout == -1) {
-      timeout = DEFAULT_TIMEOUT;
-      noTimeout = true;
-    }
+    let timer;
+
+    // Remove the timeout if set to -1 (some actions may not notify immediately)
+    let noTimeout = (timeout == -1) ? true : false;
 
     // Setup header
     _.set(val, "__head__.plugin_name", this.client.name);
@@ -118,6 +115,7 @@ class MicropedeAsync {
     // Await for notifiaton from the receiving plugin
     return new Promise((resolve, reject) => {
       this.client.onNotifyMsg(receiver, action, (payload, params) => {
+        if (timer) clearTimeout(timer);
         done = true;
         if (payload.status) {
           if (payload.status != 'success') {
@@ -133,9 +131,12 @@ class MicropedeAsync {
       this.client.sendMessage(topic, val);
 
       // Cause the notification to fail after given timeout
-      this.setTimeout(timeout).then((d) => {
-        if (!done) reject([label, `timeout ${timeout}ms`]);
-      });
+      if (!noTimeout) {
+        timer = setTimeout(()=>{
+          if (!done) reject([label, `timeout ${timeout}ms`]);
+        }, timeout);
+      }
+
     });
 
   }
