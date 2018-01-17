@@ -1,11 +1,14 @@
 /* Base MicropedeClient class */
 
-const backbone = require('backbone');
 const _ = require('lodash');
+const backbone = require('backbone');
+const isNode = require('detect-node');
 const mqtt = require('mqtt');
 const uuidv4 = require('uuid/v4');
 
-const RouteRecognizer = require('route-recognizer');
+let RouteRecognizer = require('route-recognizer');
+RouteRecognizer = RouteRecognizer.default || RouteRecognizer;
+
 const MqttMessages = require('@micropede/mixins/mqtt-messages.js');
 
 const decamelize = (str, sep='-') => {
@@ -54,8 +57,12 @@ function getClassName(instance) {
   return encodeURI(decamelize(instance.constructor.name));
 }
 
+window.mqtt = mqtt;
+
 class MicropedeClient {
-  constructor(appName, host="localhost", port=1883, name, version='0.0.0') {
+  constructor(appName, host="localhost", port, name, version='0.0.0', options=undefined) {
+    if (appName == undefined) throw "appName undefined";
+    if (port == undefined) port = isNode ? 1883 : 8083;
     _.extend(this, backbone.Events);
     _.extend(this, MqttMessages);
     var name = name || getClassName(this);
@@ -71,7 +78,11 @@ class MicropedeClient {
     this.host = host;
     this.port = port;
     this.version = version;
-    this.listen = _.noop;
+    this.options = options;
+  }
+
+  listen() {
+    console.error("Implement me!");
   }
 
   addBinding(channel, event, retain=false, qos=0, dup=false) {
@@ -138,7 +149,7 @@ class MicropedeClient {
 
 
   connectClient(clientId, host, port) {
-    this.client = mqtt.connect(`mqtt://${host}:${port}`, {clientId});
+    this.client = mqtt.connect(`mqtt://${host}:${port}`, {clientId}, this.options);
     return new Promise((resolve, reject) => {
       this.client.on("connect", () => {
         // XXX: Manually setting client.connected state

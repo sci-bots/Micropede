@@ -5,6 +5,14 @@
   <body>
     <div id='message-logger'></div>
     <div id='message-generator'></div>
+    <br/>
+    <b>Run the following in the debugger window to test MicropedeAsync:</b>
+    <br/>
+    <br/>
+    m = new MicropedeAsync('sample-app')
+    <br/>
+    m.getSubscriptions('message-logger').then((d)=>console.log(d))
+
     <script src="renderer.js"></script>
   </body>
 </html>

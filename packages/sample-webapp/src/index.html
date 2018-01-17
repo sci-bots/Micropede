@@ -1,0 +1,19 @@
+<html>
+  <body>
+    <div id='message-logger'></div>
+    <div id='message-generator'></div>
+    <div>
+      <br/>
+      <b>Run the following in the console window to test MicropedeAsync:</b>
+      <br/>
+      <br/>
+      m = new MicropedeAsync('sample-app')
+      <br/>
+      m.getSubscriptions('message-logger').then((d)=>console.log(d))
+    </div>
+    <script src="webview.js"></script>
+    <script>
+      WebView();
+    </script>
+  </body>
+</html>

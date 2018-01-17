@@ -13,8 +13,9 @@
   ],
   "dependencies": {
     "@micropede/mixins": "^0.0.0",
+    "detect-node": "^2.0.3",
     "lodash": "^4.17.4",
-    "mqtt": "^2.15.1",
+    "mqtt": "^2.14.0",
     "route-recognizer": "^0.3.3",
     "uuid": "^3.1.0"
   },

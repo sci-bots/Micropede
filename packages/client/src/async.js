@@ -5,10 +5,11 @@ const {MicropedeClient, GenerateClientId} = require('./client.js');
 const DEFAULT_TIMEOUT = 5000;
 
 class MicropedeAsync {
-  constructor(appName, host="localhost", port=1883, version='0.0.0') {
+  constructor(appName, host="localhost", port=undefined, version='0.0.0') {
     if (appName == undefined) throw "appName undefined";
     const name = `micropede-async-${uuidv4()}`;
     this.client = new MicropedeClient(appName, host, port, name, version);
+    this.client.listen = _.noop;
   }
   async reset() {
     /* Reset the state of the client (use between actions)*/
