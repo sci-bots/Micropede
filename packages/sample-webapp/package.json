@@ -24,5 +24,8 @@
     "@micropede/client": "^0.0.1",
     "express": "^4.16.2",
     "jquery": "^3.2.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
