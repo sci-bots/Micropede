@@ -15,9 +15,9 @@
     "@micropede/mixins": "^0.0.1",
     "detect-node": "^2.0.3",
     "lodash": "^4.17.4",
-    "mqtt": "^2.14.0",
+    "mqtt": "^2.15.1",
     "route-recognizer": "^0.3.3",
-    "uuid": "^3.1.0"
+    "uuid": "^3.2.1"
   },
   "author": "Sci-Bots",
   "license": "BSD-2-Clause",

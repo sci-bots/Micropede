@@ -45383,7 +45383,6 @@ class MicropedeAsync {
 
   async getSubscriptions(receiver, timeout=DEFAULT_TIMEOUT) {
     /* Get the subscriptions of another plugin */
-    console.log("getting subscriptions");
     const payload = await this.triggerPlugin(receiver, "get-subscriptions", {}, timeout);
     return payload.response;
   }
@@ -45439,9 +45438,7 @@ class MicropedeAsync {
 
     // Await for notifiaton from the receiving plugin
     return new Promise((resolve, reject) => {
-      console.log("waiting for notificataion");
       this.client.onNotifyMsg(receiver, action, (payload, params) => {
-        console.log("notification received");
         done = true;
         if (payload.status) {
           if (payload.status != 'success') {
@@ -45457,9 +45454,7 @@ class MicropedeAsync {
       this.client.sendMessage(topic, val);
 
       // Cause the notification to fail after given timeout
-      console.log("setting timeout");
       this.setTimeout(timeout).then((d) => {
-        console.log("timed out!")
         if (!done) reject([label, `timeout ${timeout}ms`]);
       });
     });
