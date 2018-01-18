@@ -176,6 +176,7 @@ class MicropedeClient {
 
   onMessage(topic, buf){
     if (topic == undefined || topic == null) return;
+    if (buf.toString() == undefined) return;
     if (buf.toString().length <= 0) return;
     try {
 
@@ -185,6 +186,8 @@ class MicropedeClient {
       } catch (e) { msg = buf.toString(); }
 
       var results = this.router.recognize(topic);
+      if (results == undefined) return;
+
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
         result.handler(msg, result.params);
