@@ -57,8 +57,6 @@ function getClassName(instance) {
   return encodeURI(decamelize(instance.constructor.name));
 }
 
-window.mqtt = mqtt;
-
 class MicropedeClient {
   constructor(appName, host="localhost", port, name, version='0.0.0', options=undefined) {
     if (appName == undefined) throw "appName undefined";
