@@ -57,6 +57,14 @@ function getClassName(instance) {
   return encodeURI(decamelize(instance.constructor.name));
 }
 
+function DumpStack(label, err) {
+  if (err.stack)
+    return _.flattenDeep([label, err.stack.toString().split("\n")]);
+  if (!err.stack)
+    return _.flattenDeep([label, err.toString().split(",")]);
+}
+
+
 class MicropedeClient {
   constructor(appName, host="localhost", port, name, version='0.0.0', options=undefined) {
     if (appName == undefined) throw "appName undefined";
@@ -202,6 +210,7 @@ class MicropedeClient {
     const message = JSON.stringify(msg);
     this.client.publish(topic, message, {retain, qos, dup});
   }
+
 }
 
-module.exports = {MicropedeClient, GenerateClientId};
+module.exports = {MicropedeClient, GenerateClientId, GetReceiver, DumpStack};
