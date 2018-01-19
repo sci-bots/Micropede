@@ -10,6 +10,7 @@ let RouteRecognizer = require('route-recognizer');
 RouteRecognizer = RouteRecognizer.default || RouteRecognizer;
 
 const MqttMessages = require('@micropede/mixins/mqtt-messages.js');
+const DEFAULT_TIMEOUT = 2000;
 
 const decamelize = (str, sep='-') => {
   // https://github.com/sindresorhus/decamelize
@@ -154,17 +155,18 @@ class MicropedeClient {
   }
 
 
-  connectClient(clientId, host, port) {
+  connectClient(clientId, host, port, timeout=DEFAULT_TIMEOUT) {
     this.client = mqtt.connect(`mqtt://${host}:${port}`, {clientId}, this.options);
     return new Promise((resolve, reject) => {
       this.client.on("connect", () => {
-        // XXX: Manually setting client.connected state
+        // XXX: Temporary fix if client is deleted before connect signal
         if (this.client == undefined){
-          this.connectClient()
+          this.connectClient(clientId, host, port)
             .then((d)=>resolve(d))
             .catch((e)=>reject(e));
           return;
         }
+        // XXX: Manually setting client.connected state
         this.client.connected = true;
         this.subscriptions = [];
         this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
@@ -176,21 +178,36 @@ class MicropedeClient {
         });
       });
       this.client.on("message", this.onMessage.bind(this));
+      setTimeout( () => { reject(`connect timeout ${timeout}ms`) },
+        timeout);
     });
   }
 
-  disconnectClient() {
+  disconnectClient(timeout=DEFAULT_TIMEOUT) {
     return new Promise((resolve, reject) => {
         this.subscriptions = [];
         this.router = new RouteRecognizer();
+        let resolved = false;
         if (!_.get(this, "client.connected")) resolve();
         else {
           this.client.end(true, () => {
-            this.off(this.onConnect);
-            this.off(this.onMessage);
-            delete this.client;
-            resolve(true);
+            if (!resolved) {
+              resolved = true;
+              this.off(this.onConnect);
+              this.off(this.onMessage);
+              delete this.client;
+              resolve(true);
+            }
           });
+
+          setTimeout( () => {
+            if (!resolved) {
+              resolved = true;
+              this.off(this.onConnect);
+              this.off(this.onMessage);
+              delete this.client;
+            }
+          }, timeout);
         }
     });
   }
