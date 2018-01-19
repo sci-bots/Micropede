@@ -10,7 +10,7 @@ let RouteRecognizer = require('route-recognizer');
 RouteRecognizer = RouteRecognizer.default || RouteRecognizer;
 
 const MqttMessages = require('@micropede/mixins/mqtt-messages.js');
-const DEFAULT_TIMEOUT = 2000;
+const DEFAULT_TIMEOUT = 5000;
 
 const decamelize = (str, sep='-') => {
   // https://github.com/sindresorhus/decamelize
