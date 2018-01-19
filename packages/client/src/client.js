@@ -106,14 +106,14 @@ class MicropedeClient {
     }
 
     if (this.subscriptions.includes(sub)) {
-      throw 'Failed to add subscription. Subscription already exists';
+      throw `Failed to add subscription.
+      Subscription already exists (${this.name}, ${channel})`;
     }
-
-    this.router.add([{path, handler}], {add: routeName});
 
     return new Promise((resolve, reject) => {
       this.client.subscribe(sub, 0, (err, granted) => {
         if (err) {reject(err); return}
+        this.router.add([{path, handler}], {add: routeName});
         this.subscriptions.push(sub);
         resolve(granted);
       });
@@ -159,11 +159,20 @@ class MicropedeClient {
     return new Promise((resolve, reject) => {
       this.client.on("connect", () => {
         // XXX: Manually setting client.connected state
+        if (this.client == undefined){
+          this.connectClient()
+            .then((d)=>resolve(d))
+            .catch((e)=>reject(e));
+          return;
+        }
         this.client.connected = true;
+        this.subscriptions = [];
         this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
           this.listen();
           this.defaultSubCount = this.subscriptions.length;
           resolve(true);
+        }).catch((e) => {
+          reject(e);
         });
       });
       this.client.on("message", this.onMessage.bind(this));
@@ -171,14 +180,18 @@ class MicropedeClient {
   }
 
   disconnectClient() {
-    this.subscriptions = [];
-    this.router = new RouteRecognizer();
     return new Promise((resolve, reject) => {
-      this.client.end(true, () => {
-        this.off(this.onConnect);
-        this.off(this.onMessage);
-        resolve();
-      });
+        this.subscriptions = [];
+        this.router = new RouteRecognizer();
+        if (!_.get(this, "client.connected")) resolve();
+        else {
+          this.client.end(true, () => {
+            this.off(this.onConnect);
+            this.off(this.onMessage);
+            delete this.client;
+            resolve(true);
+          });
+        }
     });
   }
 

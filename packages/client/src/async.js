@@ -46,12 +46,18 @@ class MicropedeAsync {
         this.client.onStateMsg(sender, prop, (payload, params) => {
           if (timer) clearTimeout(timer);
           done = true;
-          resolve(payload);
+          this.client.disconnectClient().then((d) => {
+            resolve(payload);
+          });
         });
 
         // Reject promise once a given timeout exceeds
         timer = setTimeout(()=>{
-          if (!done) reject([label, `timeout ${timeout}ms`]);
+          if (!done) {
+            this.client.disconnectClient().then((d) => {
+              reject([label, topic, `timeout ${timeout}ms`]);
+            });
+          }
         }, timeout);
       });
     } catch (e) {
@@ -90,7 +96,6 @@ class MicropedeAsync {
   async callAction(receiver, action, val, msgType='trigger', timeout=DEFAULT_TIMEOUT) {
     /* Call action (either trigger or put) and await notification */
     const label = `${this.client.appName}::callAction::${msgType}::${action}`;
-
     let done = false;
     let timer;
 
@@ -111,29 +116,33 @@ class MicropedeAsync {
     } catch (e) {
       throw(this.dumpStack([label, topic], e));
     }
-
     // Await for notifiaton from the receiving plugin
     return new Promise((resolve, reject) => {
       this.client.onNotifyMsg(receiver, action, (payload, params) => {
         if (timer) clearTimeout(timer);
         done = true;
-        if (payload.status) {
-          if (payload.status != 'success') {
-            reject(_.flattenDeep([label, _.get(payload, 'response')]));
-            return;
+        this.client.disconnectClient().then((d) => {
+          if (payload.status) {
+            if (payload.status != 'success') {
+              reject(_.flattenDeep([label, _.get(payload, 'response')]));
+              return;
+            }
+          } else {
+            console.warn([label, "message did not contain status"]);
           }
-        } else {
-          console.warn([label, "message did not contain status"]);
-        }
-        resolve(payload);
+          resolve(payload);
+        });
       });
-
       this.client.sendMessage(topic, val);
 
       // Cause the notification to fail after given timeout
       if (!noTimeout) {
         timer = setTimeout(()=>{
-          if (!done) reject([label, `timeout ${timeout}ms`]);
+          if (!done) {
+            this.client.disconnectClient().then((d) => {
+              reject([label, topic, `timeout ${timeout}ms`]);
+            });
+          }
         }, timeout);
       }
 
@@ -143,7 +152,6 @@ class MicropedeAsync {
 
   dumpStack(label, err) {
     /* Dump stack between plugins (technique to join stack of multiple processes') */
-    this.client.disconnectClient();
     if (err.stack)
       return _.flattenDeep([label, JSON.stringify(err.stack).replace(/\\/g, "").replace(/"/g,"").split("\n")]);
     if (!err.stack)

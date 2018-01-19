@@ -5,6 +5,8 @@ const backbone = require('backbone');
 const mosca = require('mosca');
 const leveljs = require('level-js');
 
+let activeClients = 0;
+
 class MicropedeBroker {
   constructor(appName='micropede', clientPort=8083, brokerPort=1883) {
     _.extend(this, backbone.Events);
@@ -37,22 +39,29 @@ class MicropedeBroker {
 
   listen() {
     this.server.on('clientConnected', this.clientConnected.bind(this));
-    this.server.on('clientDisconnected', _.noop);
+    this.server.on('clientDisconnected', this.clientDisconnected.bind(this));
     this.server.on('published', _.noop);
   }
 
   clientConnected(client) {
     const [name, path, app, uid] = client.id.split(">>");
+    activeClients += 1;
+    // console.log(`active clients: ${activeClients}`);
     if (!name) return;
 
-    if (!_.includes(name, 'micropede-async') && name != 'undefined'){
-      console.log('client connected', name);
-    }
+    // if (!_.includes(name, 'micropede-async') && name != 'undefined'){
+    //   console.log('client connected', name);
+    // }
 
     if (path != undefined){
       const sub = `${this.channel}/signal/client-connected`;
       this.sendMessage(sub, {name, path});
     }
+  }
+
+  clientDisconnected(client) {
+    activeClients -= 1;
+    // console.log(`active clients: ${activeClients}`);
   }
 
   sendMessage(topic, msg={}, retain=false, qos=0, dup=false){
