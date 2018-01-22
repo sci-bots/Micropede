@@ -1,14 +1,17 @@
 /* Launch MicropedeClients asynchronously */
 const _ = require('lodash');
+const uuidv1 = require('uuid/v1');
 const uuidv4 = require('uuid/v4');
 const {MicropedeClient, GenerateClientId} = require('./client.js');
 const DEFAULT_TIMEOUT = 5000;
 
+const CLIENT_OPTIONS = {resubscribe: false, keepalive: 0};
+
 class MicropedeAsync {
   constructor(appName, host="localhost", port=undefined, version='0.0.0') {
     if (appName == undefined) throw "appName undefined";
-    const name = `micropede-async-${uuidv4()}`;
-    this.client = new MicropedeClient(appName, host, port, name, version);
+    const name = `micropede-async-${uuidv1()}-${uuidv4()}`;
+    this.client = new MicropedeClient(appName, host, port, name, version, CLIENT_OPTIONS);
     this.client.listen = _.noop;
   }
   async reset() {
@@ -34,35 +37,33 @@ class MicropedeAsync {
     let timer;
 
     try {
-      // Fail if this client is awaiting another subscription
       this.enforceSingleSubscription(label);
-
-      // Reset the client
       await this.reset();
-
-      // Subscribe to a state channel of another plugin, and return
-      // the first response
-      return new Promise((resolve, reject) => {
-        this.client.onStateMsg(sender, prop, (payload, params) => {
-          if (timer) clearTimeout(timer);
-          done = true;
-          this.client.disconnectClient().then((d) => {
-            resolve(payload);
-          });
-        });
-
-        // Reject promise once a given timeout exceeds
-        timer = setTimeout(()=>{
-          if (!done) {
-            this.client.disconnectClient().then((d) => {
-              reject([label, topic, `timeout ${timeout}ms`]);
-            });
-          }
-        }, timeout);
-      });
     } catch (e) {
       throw(this.dumpStack([label, topic], e));
     }
+
+    // Subscribe to a state channel of another plugin, and return
+    // the first response
+    return new Promise((resolve, reject) => {
+
+      // Success case: (receivce message from state channel)
+      this.client.onStateMsg(sender, prop, (payload, params) => {
+        if (timer) clearTimeout(timer);
+        done = true;
+        this.client.disconnectClient().then((d) => {
+          resolve(payload);
+        }).catch((e) => {
+          reject(e);
+        });
+      });
+
+      // Rejection case: (client times out before receiving state msg)
+      timer = setTimeout( () => {
+        if (!done) reject([label, topic, `timeout ${timeout}ms`]);
+      }, timeout);
+
+    });
   }
 
   async getSubscriptions(receiver, timeout=DEFAULT_TIMEOUT) {
@@ -116,12 +117,13 @@ class MicropedeAsync {
     } catch (e) {
       throw(this.dumpStack([label, topic], e));
     }
+
     // Await for notifiaton from the receiving plugin
     return new Promise((resolve, reject) => {
       this.client.onNotifyMsg(receiver, action, (payload, params) => {
-        if (timer) clearTimeout(timer);
-        done = true;
         this.client.disconnectClient().then((d) => {
+          if (timer) clearTimeout(timer);
+          done = true;
           if (payload.status) {
             if (payload.status != 'success') {
               reject(_.flattenDeep([label, _.get(payload, 'response')]));
@@ -131,18 +133,14 @@ class MicropedeAsync {
             console.warn([label, "message did not contain status"]);
           }
           resolve(payload);
-        });
+        }).catch((e)=>reject(e));
       });
       this.client.sendMessage(topic, val);
 
       // Cause the notification to fail after given timeout
       if (!noTimeout) {
-        timer = setTimeout(()=>{
-          if (!done) {
-            this.client.disconnectClient().then((d) => {
-              reject([label, topic, `timeout ${timeout}ms`]);
-            });
-          }
+        timer = setTimeout(() => {
+          if (!done) reject([label, topic, `timeout ${timeout}ms`]);
         }, timeout);
       }
 
@@ -152,6 +150,7 @@ class MicropedeAsync {
 
   dumpStack(label, err) {
     /* Dump stack between plugins (technique to join stack of multiple processes') */
+    if (!err) return _.flattenDeep([label, 'unknown error']);
     if (err.stack)
       return _.flattenDeep([label, JSON.stringify(err.stack).replace(/\\/g, "").replace(/"/g,"").split("\n")]);
     if (!err.stack)

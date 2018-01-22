@@ -4,6 +4,7 @@ const _ = require('lodash');
 const backbone = require('backbone');
 const isNode = require('detect-node');
 const mqtt = require('mqtt');
+const uuidv1 = require('uuid/v1');
 const uuidv4 = require('uuid/v4');
 
 let RouteRecognizer = require('route-recognizer');
@@ -32,7 +33,7 @@ function ChannelToSubscription(channel) {
 
 function GenerateClientId(name, appName, path='unknown'){
   /* Returns client id , using '>>' as a separator */
-  return `${name}>>${path}>>${appName}>>${uuidv4()}`;
+  return `${name}>>${path}>>${appName}>>${uuidv1()}-${uuidv4()}`;
 }
 
 function WrapData(key, value, name, version) {
@@ -59,6 +60,7 @@ function getClassName(instance) {
 }
 
 function DumpStack(label, err) {
+  if (!err) return _.flattenDeep([label, 'unknown error']);
   if (err.stack)
     return _.flattenDeep([label, err.stack.toString().split("\n")]);
   if (!err.stack)
@@ -74,10 +76,8 @@ class MicropedeClient {
     _.extend(this, MqttMessages);
     var name = name || getClassName(this);
     const clientId = GenerateClientId(name, appName);
-
-    this.connectClient(clientId, host, port);
-
     this.router = new RouteRecognizer();
+
     this.appName = appName;
     this.clientId = clientId;
     this.name = name;
@@ -86,11 +86,14 @@ class MicropedeClient {
     this.port = port;
     this.version = version;
     this.options = options;
+    this.connectClient(clientId, host, port);
   }
+  get isPlugin() { return false }
 
   listen() {
     console.error("Implement me!");
   }
+
 
   addBinding(channel, event, retain=false, qos=0, dup=false) {
     return this.on(event, (d) => this.sendMessage(channel, d, retain, qos, dup));
@@ -99,26 +102,29 @@ class MicropedeClient {
   addSubscription(channel, handler) {
     const path = ChannelToRoutePath(channel);
     const sub = ChannelToSubscription(channel);
-    const routeName = uuidv4();
+    const routeName = `${uuidv1()}-${uuidv4()}`;
+    try {
+      if (!this.client.connected) {
+        throw `Failed to add subscription.
+        Client is not connected (${this.name}, ${channel})`;
+      }
 
-    if (!this.client.connected) {
-      throw `Failed to add subscription.
-      Client is not connected (${this.name}, ${channel})`;
-    }
+      if (this.subscriptions.includes(sub)) {
+        throw `Failed to add subscription.
+        Subscription already exists (${this.name}, ${channel})`;
+      }
 
-    if (this.subscriptions.includes(sub)) {
-      throw `Failed to add subscription.
-      Subscription already exists (${this.name}, ${channel})`;
-    }
-
-    return new Promise((resolve, reject) => {
-      this.client.subscribe(sub, 0, (err, granted) => {
-        if (err) {reject(err); return}
-        this.router.add([{path, handler}], {add: routeName});
-        this.subscriptions.push(sub);
-        resolve(granted);
+      return new Promise((resolve, reject) => {
+        this.client.subscribe(sub, 0, (err, granted) => {
+          if (err) {reject(err); return}
+          this.router.add([{path, handler}], {add: routeName});
+          this.subscriptions.push(sub);
+          resolve(granted);
+        });
       });
-    });
+    } catch (e) {
+      return Promise.reject(DumpStack(label, e));
+    }
   }
 
   removeSubscription(channel) {
@@ -141,7 +147,7 @@ class MicropedeClient {
 
   notifySender(payload, response, endpoint, status='success') {
     if (status != 'success') {
-      console.error("ERROR:", _.flattenDeep([response]));
+      console.error(_.flattenDeep([response]));
       response = _.flattenDeep(response);
     }
     const receiver = GetReceiver(payload);
@@ -156,57 +162,59 @@ class MicropedeClient {
 
 
   connectClient(clientId, host, port, timeout=DEFAULT_TIMEOUT) {
-    this.client = mqtt.connect(`mqtt://${host}:${port}`, {clientId}, this.options);
+    let client = mqtt.connect(`mqtt://${host}:${port}`, {clientId}, this.options);
     return new Promise((resolve, reject) => {
-      this.client.on("connect", () => {
-        // XXX: Temporary fix if client is deleted before connect signal
-        if (this.client == undefined){
-          this.connectClient(clientId, host, port)
-            .then((d)=>resolve(d))
-            .catch((e)=>reject(e));
-          return;
+      client.on("connect", () => {
+        try {
+          // XXX: Manually setting client.connected state
+          client.connected = true;
+          this.client = client;
+          this.subscriptions = [];
+          this.client.on("message", this.onMessage.bind(this));
+          if (this.isPlugin) {
+            this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
+              this.listen();
+              this.defaultSubCount = this.subscriptions.length;
+              resolve(true);
+            });
+          } else {
+            this.listen();
+            this.defaultSubCount = 0;
+            resolve(true);
+          }
+        } catch (e) {
+          reject(DumpStack(this.name, e));
         }
-        // XXX: Manually setting client.connected state
-        this.client.connected = true;
-        this.subscriptions = [];
-        this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
-          this.listen();
-          this.defaultSubCount = this.subscriptions.length;
-          resolve(true);
-        }).catch((e) => {
-          reject(e);
-        });
-      });
-      this.client.on("message", this.onMessage.bind(this));
-      setTimeout( () => { reject(`connect timeout ${timeout}ms`) },
-        timeout);
     });
-  }
 
-  disconnectClient(timeout=DEFAULT_TIMEOUT) {
+    setTimeout( () => {
+      reject(`connect timeout ${timeout}ms`)
+    }, timeout);
+
+  });
+}
+
+  disconnectClient(timeout=500) {
     return new Promise((resolve, reject) => {
         this.subscriptions = [];
         this.router = new RouteRecognizer();
-        let resolved = false;
-        if (!_.get(this, "client.connected")) resolve();
-        else {
+        if (!_.get(this, "client.connected")) {
+          this.off();
+          delete this.client;
+          resolve();
+        } else {
+          // disconnect the client (wihout waiting for any messages)
           this.client.end(true, () => {
-            if (!resolved) {
-              resolved = true;
-              this.off(this.onConnect);
-              this.off(this.onMessage);
-              delete this.client;
-              resolve(true);
-            }
+            this.off();
+            delete this.client;
+            resolve(true);
           });
 
           setTimeout( () => {
-            if (!resolved) {
-              resolved = true;
-              this.off(this.onConnect);
-              this.off(this.onMessage);
-              delete this.client;
-            }
+            // reject(`disconnect timeout ${timeout}ms`);
+            this.off();
+            delete this.client;
+            resolve(true);
           }, timeout);
         }
     });
@@ -243,4 +251,4 @@ class MicropedeClient {
 
 }
 
-module.exports = {MicropedeClient, GenerateClientId, GetReceiver, DumpStack};
+module.exports = {MicropedeClient, GenerateClientId, GetReceiver, DumpStack, WrapData};
