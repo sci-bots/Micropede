@@ -13,12 +13,12 @@ class MicropedeBroker {
     this.appName = appName;
 
     const http  = new Object();
-    http.port   = 8083;
+    http.port   = clientPort;
     http.bundle = true;
     http.static = path.resolve('.');
 
     const settings = new Object();
-    settings.port  = 1883;
+    settings.port  = brokerPort;
     settings.http  = http;
 
     const db_settings         = new Object();
@@ -40,7 +40,12 @@ class MicropedeBroker {
   listen() {
     this.server.on('clientConnected', this.clientConnected.bind(this));
     this.server.on('clientDisconnected', this.clientDisconnected.bind(this));
-    this.server.on('published', _.noop);
+    this.server.on('published', this.topicPublished.bind(this));
+  }
+
+  topicPublished(packet) {
+    // console.log("TOPIC PUBLISHED:::");
+    // console.log(packet.topic);
   }
 
   clientConnected(client) {
@@ -53,10 +58,10 @@ class MicropedeBroker {
     //   console.log('client connected', name);
     // }
 
-    if (path != undefined){
-      const sub = `${this.channel}/signal/client-connected`;
-      this.sendMessage(sub, {name, path});
-    }
+    // if (path != undefined){
+    //   const sub = `${this.channel}/signal/client-connected`;
+    //   this.sendMessage(sub, {name, path});
+    // }
   }
 
   clientDisconnected(client) {
