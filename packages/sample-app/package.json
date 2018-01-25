@@ -1,6 +1,6 @@
 {
   "name": "@micropede/sample-app",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "Sample Electron Application based on Micropede",
   "main": "src/index.js",
   "scripts": {
@@ -15,8 +15,8 @@
   "author": "Sci-Bots",
   "license": "BSD-2-Clause",
   "dependencies": {
-    "@micropede/broker": "^0.0.10",
-    "@micropede/client": "^0.0.10",
+    "@micropede/broker": "^0.0.11",
+    "@micropede/client": "^0.0.11",
     "yo-yo": "^1.4.1"
   },
   "publishConfig": {
