@@ -14,6 +14,9 @@ class MessageLogger extends MicropedeClient {
   listen() {
     this.onStateMsg("{pluginName}", "{val}", this.logOutput.bind(this));
   }
+
+  get isPlugin() {return true}
+
   logOutput(payload, params) {
     this.messageLog.appendChild(yo`<li>${params.pluginName}, ${params.val}, ${payload}</li>`);
   }
@@ -28,6 +31,9 @@ class MessageGenerator extends MicropedeClient {
   listen() {
     this.bindStateMsg('blah', 'set-blah')
   }
+
+  get isPlugin() {return true}
+
   inputChanged(e) {
     this.inputValue = e.target.value;
   }

@@ -20,6 +20,9 @@ class MicropedeBroker {
     const settings = new Object();
     settings.port  = brokerPort;
     settings.http  = http;
+    // settings.publishNewClient = false;
+    // settings.publishClientDisconnect = false;
+    // settings.publishSubscriptions = false;
 
     const db_settings         = new Object();
     db_settings.path          = path.join(__dirname, "db");
@@ -31,8 +34,6 @@ class MicropedeBroker {
     this.settings = settings;
     this.server = new mosca.Server(settings);
     this.db.wire(this.server);
-
-    this.listen();
   }
 
   get channel() {return `${this.appName}/broker`;}
@@ -41,14 +42,18 @@ class MicropedeBroker {
     this.server.on('clientConnected', this.clientConnected.bind(this));
     this.server.on('clientDisconnected', this.clientDisconnected.bind(this));
     this.server.on('published', this.topicPublished.bind(this));
+    this.server.on('ready', ()=>this.trigger('broker-ready'));
   }
 
   topicPublished(packet) {
-    // console.log("TOPIC PUBLISHED:::");
-    // console.log(packet.topic);
+    console.log("TOPIC PUBLISHED:::");
+    console.log(packet.topic);
   }
 
   clientConnected(client) {
+    console.log("CLIENT CONNECTED:::");
+    console.log(client.id);
+
     const [name, path, app, uid] = client.id.split(">>");
     activeClients += 1;
     // console.log(`active clients: ${activeClients}`);

@@ -61,7 +61,7 @@ var WebView =
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 32);
+/******/ 	return __webpack_require__(__webpack_require__.s = 35);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -882,9 +882,9 @@ function nextTick(fn, arg1, arg2, arg3) {
 
 
 
-var base64 = __webpack_require__(50)
-var ieee754 = __webpack_require__(51)
-var isArray = __webpack_require__(52)
+var base64 = __webpack_require__(53)
+var ieee754 = __webpack_require__(54)
+var isArray = __webpack_require__(55)
 
 exports.Buffer = Buffer
 exports.SlowBuffer = SlowBuffer
@@ -2788,7 +2788,7 @@ exports.Readable = exports;
 exports.Writable = __webpack_require__(21);
 exports.Duplex = __webpack_require__(4);
 exports.Transform = __webpack_require__(23);
-exports.PassThrough = __webpack_require__(59);
+exports.PassThrough = __webpack_require__(62);
 
 
 /***/ }),
@@ -2844,8 +2844,8 @@ function extend() {
 
 
 
-var punycode = __webpack_require__(74);
-var util = __webpack_require__(75);
+var punycode = __webpack_require__(77);
+var util = __webpack_require__(78);
 
 exports.parse = urlParse;
 exports.resolve = urlResolve;
@@ -2920,7 +2920,7 @@ var protocolPattern = /^([a-z0-9.+-]+:)/i,
       'gopher:': true,
       'file:': true
     },
-    querystring = __webpack_require__(76);
+    querystring = __webpack_require__(79);
 
 function urlParse(url, parseQueryString, slashesDenoteHost) {
   if (url && util.isObject(url) && url instanceof Url) return url;
@@ -3561,7 +3561,7 @@ Url.prototype.parseHost = function() {
 
 "use strict";
 
-var tls = __webpack_require__(80)
+var tls = __webpack_require__(83)
 
 function buildBuilder (mqttClient, opts) {
   var connection
@@ -3609,7 +3609,7 @@ module.exports = buildBuilder
 
 /* WEBPACK VAR INJECTION */(function(global) {var topLevel = typeof global !== 'undefined' ? global :
     typeof window !== 'undefined' ? window : {}
-var minDoc = __webpack_require__(35);
+var minDoc = __webpack_require__(38);
 
 var doccy;
 
@@ -3634,16 +3634,17 @@ module.exports = doccy;
 /* Base MicropedeClient class */
 
 const _ = __webpack_require__(15);
-const backbone = __webpack_require__(43);
-const isNode = __webpack_require__(46);
-const mqtt = __webpack_require__(47);
-const uuidv4 = __webpack_require__(31);
+const backbone = __webpack_require__(46);
+const isNode = __webpack_require__(49);
+const mqtt = __webpack_require__(50);
+const uuidv1 = __webpack_require__(31);
+const uuidv4 = __webpack_require__(34);
 
-let RouteRecognizer = __webpack_require__(86);
+let RouteRecognizer = __webpack_require__(87);
 RouteRecognizer = RouteRecognizer.default || RouteRecognizer;
 
-const MqttMessages = __webpack_require__(87);
-const DEFAULT_TIMEOUT = 2000;
+const MqttMessages = __webpack_require__(88);
+const DEFAULT_TIMEOUT = 5000;
 
 const decamelize = (str, sep='-') => {
   // https://github.com/sindresorhus/decamelize
@@ -3665,7 +3666,7 @@ function ChannelToSubscription(channel) {
 
 function GenerateClientId(name, appName, path='unknown'){
   /* Returns client id , using '>>' as a separator */
-  return `${name}>>${path}>>${appName}>>${uuidv4()}`;
+  return `${name}>>${path}>>${appName}>>${uuidv1()}-${uuidv4()}`;
 }
 
 function WrapData(key, value, name, version) {
@@ -3692,12 +3693,50 @@ function getClassName(instance) {
 }
 
 function DumpStack(label, err) {
+  if (!err) return _.flattenDeep([label, 'unknown error']);
   if (err.stack)
     return _.flattenDeep([label, err.stack.toString().split("\n")]);
   if (!err.stack)
     return _.flattenDeep([label, err.toString().split(",")]);
 }
 
+function TrackClient(client, isPlugin) {
+  if (isNode) return;
+  if (!window.openClients) window.openClients = [];
+  if (!window.openPlugins) window.openPlugins = [];
+  if (!isPlugin) window.openClients.push(client)
+  if (isPlugin) window.openPlugins.push(client);
+
+  if (window.openClients.length > 150) FlushClients();
+}
+
+function FlushClients() {
+  if (!window) return;
+  _.each(window.openClients, (c) => {
+    try {
+      let socket = c.stream.socket;
+      socket.onclose = _.noop;
+      let readyState = socket.readyState;
+      switch (readyState) {
+        case socket.OPEN:
+          socket.close();
+          break;
+        case socket.CONNECTING:
+          socket.close();
+          break;
+        default:
+          break;
+      }
+    } catch (e) {
+      console.error(e);
+      // ignore cient already disconnected errors
+    }
+  });
+
+  window.openClients = [];
+}
+
+if (!isNode) window.FlushClients = FlushClients;
 
 class MicropedeClient {
   constructor(appName, host="localhost", port, name, version='0.0.0', options=undefined) {
@@ -3707,10 +3746,8 @@ class MicropedeClient {
     _.extend(this, MqttMessages);
     var name = name || getClassName(this);
     const clientId = GenerateClientId(name, appName);
-
-    this.connectClient(clientId, host, port);
-
     this.router = new RouteRecognizer();
+    this.__listen = _.noop;
     this.appName = appName;
     this.clientId = clientId;
     this.name = name;
@@ -3718,40 +3755,53 @@ class MicropedeClient {
     this.host = host;
     this.port = port;
     this.version = version;
-    this.options = options;
+    this.options = options ? options : { resubscribe: false};
+    this.lastMessage = null;
+    try {
+      this.connectClient(clientId, host, port);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  listen() {
-    console.error("Implement me!");
-  }
+  get isPlugin() { return !_.isEqual(this.listen, _.noop)}
+
+  set listen(f) { this.__listen = f}
+  get listen() {return this.__listen }
 
   addBinding(channel, event, retain=false, qos=0, dup=false) {
     return this.on(event, (d) => this.sendMessage(channel, d, retain, qos, dup));
   }
 
-  addSubscription(channel, handler) {
+  async addSubscription(channel, handler) {
     const path = ChannelToRoutePath(channel);
     const sub = ChannelToSubscription(channel);
-    const routeName = uuidv4();
+    const routeName = `${uuidv1()}-${uuidv4()}`;
+    try {
+      if (!this.client.connected) {
+        throw `Failed to add subscription.
+        Client is not connected (${this.name}, ${channel})`;
+      }
 
-    if (!this.client.connected) {
-      throw `Failed to add subscription.
-      Client is not connected (${this.name}, ${channel})`;
-    }
-
-    if (this.subscriptions.includes(sub)) {
-      throw `Failed to add subscription.
-      Subscription already exists (${this.name}, ${channel})`;
-    }
-
-    return new Promise((resolve, reject) => {
-      this.client.subscribe(sub, 0, (err, granted) => {
-        if (err) {reject(err); return}
-        this.router.add([{path, handler}], {add: routeName});
+      if (this.subscriptions.includes(sub)) {
+        await new Promise((resolve, reject) => {
+          this.client.unsubscribe(sub, () => {resolve();});
+        });
+      } else {
         this.subscriptions.push(sub);
-        resolve(granted);
+        this.router.add([{path, handler}], {add: routeName});
+      }
+
+      return new Promise((resolve, reject) => {
+        this.client.subscribe(sub, {qos: 0}, (err, granted) => {
+          if (err) {reject(err); return}
+          resolve(granted);
+        });
       });
-    });
+
+    } catch (e) {
+      return Promise.reject(DumpStack(this.name, e));
+    }
   }
 
   removeSubscription(channel) {
@@ -3774,7 +3824,7 @@ class MicropedeClient {
 
   notifySender(payload, response, endpoint, status='success') {
     if (status != 'success') {
-      console.error("ERROR:", _.flattenDeep([response]));
+      console.error(_.flattenDeep([response]));
       response = _.flattenDeep(response);
     }
     const receiver = GetReceiver(payload);
@@ -3789,66 +3839,109 @@ class MicropedeClient {
 
 
   connectClient(clientId, host, port, timeout=DEFAULT_TIMEOUT) {
-    this.client = mqtt.connect(`mqtt://${host}:${port}`, {clientId}, this.options);
+    let options  = {clientId: clientId};
+    if (!this.isPlugin) options = { clientId: clientId, resubscribe: false, reconnectPeriod: -1};
+    let client = mqtt.connect(`mqtt://${host}:${port}`, options);
+
+    TrackClient(client, this.isPlugin);
+
     return new Promise((resolve, reject) => {
-      this.client.on("connect", () => {
-        // XXX: Temporary fix if client is deleted before connect signal
-        if (this.client == undefined){
-          this.connectClient(clientId, host, port)
-            .then((d)=>resolve(d))
-            .catch((e)=>reject(e));
-          return;
-        }
-        // XXX: Manually setting client.connected state
-        this.client.connected = true;
-        this.subscriptions = [];
-        this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
-          this.listen();
-          this.defaultSubCount = this.subscriptions.length;
-          resolve(true);
-        }).catch((e) => {
-          reject(e);
-        });
+      if (!isNode) {
+        client.stream.socket.onerror = (e) => {
+          FlushClients();
+          reject(DumpStack(this.name ,e));
+        };
+      }
+
+      client.on("error", (e) => {
+        reject(DumpStack(this.name ,e));
       });
-      this.client.on("message", this.onMessage.bind(this));
-      setTimeout( () => { reject(`connect timeout ${timeout}ms`) },
-        timeout);
+
+      client.on("connect", () => {
+        try {
+          // XXX: Manually setting client.connected state
+          client.connected = true;
+          this.client = client;
+          this.subscriptions = [];
+          if (this.isPlugin == true) {
+            this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
+              this.listen();
+              this.defaultSubCount = this.subscriptions.length;
+              resolve(true);
+            });
+          } else {
+            this.listen();
+            this.defaultSubCount = 0;
+            resolve(true);
+          }
+        } catch (e) {
+          reject(DumpStack(this.name, e));
+          // this.disconnectClient();
+        }
+    });
+    client.on("message", this.onMessage.bind(this));
+    // client.on("reconnect", this.onReconnect.bind(this));
+
+    setTimeout( () => {
+      reject(`connect timeout ${timeout}ms`);
+      // this.disconnectClient();
+    }, timeout);
+
+  });
+}
+
+  disconnectClient(timeout=500) {
+    return new Promise((resolve, reject) => {
+      this.subscriptions = [];
+      this.router = new RouteRecognizer();
+
+      if (!_.get(this, "client.connected")) {
+        this.off();
+        delete this.client;
+        resolve();
+      }
+      else {
+        if (this.client) {
+
+          let end = () => {
+            this.off();
+            delete this.client;
+            resolve(true);
+          }
+
+          this.client.end(true, () => {end();});
+          setTimeout( () => {end()}, timeout);
+
+          if (!isNode) {
+            let socket = this.client.stream.socket;
+            if (socket.readyState == socket.OPEN) socket.close();
+          }
+
+        }
+      }
+
     });
   }
 
-  disconnectClient(timeout=DEFAULT_TIMEOUT) {
-    return new Promise((resolve, reject) => {
-        this.subscriptions = [];
-        this.router = new RouteRecognizer();
-        let resolved = false;
-        if (!_.get(this, "client.connected")) resolve();
-        else {
-          this.client.end(true, () => {
-            if (!resolved) {
-              resolved = true;
-              this.off(this.onConnect);
-              this.off(this.onMessage);
-              delete this.client;
-              resolve(true);
-            }
-          });
+  async onReconnect() {
+    console.log("ATTEMPTING TO RECONNECT::", this.name, this.lastMessage);
+    // if (alert) alert();
 
-          setTimeout( () => {
-            if (!resolved) {
-              resolved = true;
-              this.off(this.onConnect);
-              this.off(this.onMessage);
-              delete this.client;
-            }
-          }, timeout);
-        }
-    });
+    if (this.client) {
+      this.client.end(true);
+      delete this.client;
+      console.log(this.client);
+    }
+    delete this;
   }
 
   onMessage(topic, buf){
     if (topic == undefined || topic == null) return;
     if (buf.toString() == undefined) return;
     if (buf.toString().length <= 0) return;
+    // console.log("ONMESSAGE:::", topic);
+    // console.log("FOR:::", this.name);
+
     try {
 
       let msg;
@@ -3870,13 +3963,18 @@ class MicropedeClient {
   }
 
   sendMessage(topic, msg={}, retain=false, qos=0, dup=false){
+    if (_.isPlainObject(msg) && msg.__head__ == undefined) {
+      msg.__head__ = WrapData(null, null, this.name, this.version).__head__;
+    }
+
     const message = JSON.stringify(msg);
+    this.lastMessage = topic;
     this.client.publish(topic, message, {retain, qos, dup});
   }
 
 }
 
-module.exports = {MicropedeClient, GenerateClientId, GetReceiver, DumpStack};
+module.exports = {MicropedeClient, GenerateClientId, GetReceiver, DumpStack, WrapData};
 
 
 /***/ }),
@@ -21168,7 +21266,7 @@ var processNextTick = __webpack_require__(6);
 module.exports = Readable;
 
 /*<replacement>*/
-var isArray = __webpack_require__(49);
+var isArray = __webpack_require__(52);
 /*</replacement>*/
 
 /*<replacement>*/
@@ -21208,7 +21306,7 @@ util.inherits = __webpack_require__(2);
 /*</replacement>*/
 
 /*<replacement>*/
-var debugUtil = __webpack_require__(53);
+var debugUtil = __webpack_require__(56);
 var debug = void 0;
 if (debugUtil && debugUtil.debuglog) {
   debug = debugUtil.debuglog('stream');
@@ -21217,7 +21315,7 @@ if (debugUtil && debugUtil.debuglog) {
 }
 /*</replacement>*/
 
-var BufferList = __webpack_require__(54);
+var BufferList = __webpack_require__(57);
 var destroyImpl = __webpack_require__(20);
 var StringDecoder;
 
@@ -22308,7 +22406,7 @@ util.inherits = __webpack_require__(2);
 
 /*<replacement>*/
 var internalUtil = {
-  deprecate: __webpack_require__(57)
+  deprecate: __webpack_require__(60)
 };
 /*</replacement>*/
 
@@ -22900,7 +22998,7 @@ Writable.prototype._destroy = function (err, cb) {
   this.end();
   cb(err);
 };
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(55).setImmediate, __webpack_require__(0)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(58).setImmediate, __webpack_require__(0)))
 
 /***/ }),
 /* 22 */
@@ -22909,7 +23007,7 @@ Writable.prototype._destroy = function (err, cb) {
 "use strict";
 
 
-var Buffer = __webpack_require__(58).Buffer;
+var Buffer = __webpack_require__(61).Buffer;
 
 var isEncoding = Buffer.isEncoding || function (encoding) {
   encoding = '' + encoding;
@@ -23404,7 +23502,7 @@ function done(stream, er, data) {
 /* 24 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var once = __webpack_require__(60);
+var once = __webpack_require__(63);
 
 var noop = function() {};
 
@@ -23622,7 +23720,7 @@ var protocol = __webpack_require__(25)
 var Buffer = __webpack_require__(3).Buffer
 var empty = Buffer.allocUnsafe(0)
 var zeroBuf = Buffer.from([0])
-var numbers = __webpack_require__(71)
+var numbers = __webpack_require__(74)
 var nextTick = __webpack_require__(6)
 
 var numCache = numbers.cache
@@ -24204,7 +24302,7 @@ module.exports = generate
 
 "use strict";
 
-var net = __webpack_require__(79)
+var net = __webpack_require__(82)
 
 /*
   variables port and host can be removed since
@@ -24366,8 +24464,8 @@ module.exports = buildBuilder
 /* WEBPACK VAR INJECTION */(function(process, global) {
 
 var Transform = __webpack_require__(9).Transform
-var duplexify = __webpack_require__(81)
-var WS = __webpack_require__(83)
+var duplexify = __webpack_require__(84)
+var WS = __webpack_require__(86)
 var Buffer = __webpack_require__(3).Buffer
 
 module.exports = WebSocketStream
@@ -24649,8 +24747,190 @@ if (IS_BROWSER) {
 /* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var rng = __webpack_require__(84);
-var bytesToUuid = __webpack_require__(85);
+var rng = __webpack_require__(32);
+var bytesToUuid = __webpack_require__(33);
+
+// **`v1()` - Generate time-based UUID**
+//
+// Inspired by https://github.com/LiosK/UUID.js
+// and http://docs.python.org/library/uuid.html
+
+var _nodeId;
+var _clockseq;
+
+// Previous uuid creation time
+var _lastMSecs = 0;
+var _lastNSecs = 0;
+
+// See https://github.com/broofa/node-uuid for API details
+function v1(options, buf, offset) {
+  var i = buf && offset || 0;
+  var b = buf || [];
+
+  options = options || {};
+  var node = options.node || _nodeId;
+  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
+
+  // node and clockseq need to be initialized to random values if they're not
+  // specified.  We do this lazily to minimize issues related to insufficient
+  // system entropy.  See #189
+  if (node == null || clockseq == null) {
+    var seedBytes = rng();
+    if (node == null) {
+      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
+      node = _nodeId = [
+        seedBytes[0] | 0x01,
+        seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]
+      ];
+    }
+    if (clockseq == null) {
+      // Per 4.2.2, randomize (14 bit) clockseq
+      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
+    }
+  }
+
+  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
+  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
+  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
+  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
+  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
+
+  // Per 4.2.1.2, use count of uuid's generated during the current clock
+  // cycle to simulate higher resolution clock
+  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
+
+  // Time since last uuid creation (in msecs)
+  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
+
+  // Per 4.2.1.2, Bump clockseq on clock regression
+  if (dt < 0 && options.clockseq === undefined) {
+    clockseq = clockseq + 1 & 0x3fff;
+  }
+
+  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
+  // time interval
+  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
+    nsecs = 0;
+  }
+
+  // Per 4.2.1.2 Throw error if too many uuids are requested
+  if (nsecs >= 10000) {
+    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
+  }
+
+  _lastMSecs = msecs;
+  _lastNSecs = nsecs;
+  _clockseq = clockseq;
+
+  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
+  msecs += 12219292800000;
+
+  // `time_low`
+  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+  b[i++] = tl >>> 24 & 0xff;
+  b[i++] = tl >>> 16 & 0xff;
+  b[i++] = tl >>> 8 & 0xff;
+  b[i++] = tl & 0xff;
+
+  // `time_mid`
+  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
+  b[i++] = tmh >>> 8 & 0xff;
+  b[i++] = tmh & 0xff;
+
+  // `time_high_and_version`
+  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
+  b[i++] = tmh >>> 16 & 0xff;
+
+  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
+  b[i++] = clockseq >>> 8 | 0x80;
+
+  // `clock_seq_low`
+  b[i++] = clockseq & 0xff;
+
+  // `node`
+  for (var n = 0; n < 6; ++n) {
+    b[i + n] = node[n];
+  }
+
+  return buf ? buf : bytesToUuid(b);
+}
+
+module.exports = v1;
+
+
+/***/ }),
+/* 32 */
+/***/ (function(module, exports) {
+
+// Unique ID creation requires a high quality random # generator.  In the
+// browser this is a little complicated due to unknown quality of Math.random()
+// and inconsistent support for the `crypto` API.  We do the best we can via
+// feature-detection
+
+// getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
+var getRandomValues = (typeof(crypto) != 'undefined' && crypto.getRandomValues.bind(crypto)) ||
+                      (typeof(msCrypto) != 'undefined' && msCrypto.getRandomValues.bind(msCrypto));
+if (getRandomValues) {
+  // WHATWG crypto RNG - http://wiki.whatwg.org/wiki/Crypto
+  var rnds8 = new Uint8Array(16); // eslint-disable-line no-undef
+
+  module.exports = function whatwgRNG() {
+    getRandomValues(rnds8);
+    return rnds8;
+  };
+} else {
+  // Math.random()-based (RNG)
+  //
+  // If all else fails, use Math.random().  It's fast, but is of unspecified
+  // quality.
+  var rnds = new Array(16);
+
+  module.exports = function mathRNG() {
+    for (var i = 0, r; i < 16; i++) {
+      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
+      rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
+    }
+
+    return rnds;
+  };
+}
+
+
+/***/ }),
+/* 33 */
+/***/ (function(module, exports) {
+
+/**
+ * Convert array of 16 byte values to UUID string format of the form:
+ * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+ */
+var byteToHex = [];
+for (var i = 0; i < 256; ++i) {
+  byteToHex[i] = (i + 0x100).toString(16).substr(1);
+}
+
+function bytesToUuid(buf, offset) {
+  var i = offset || 0;
+  var bth = byteToHex;
+  return bth[buf[i++]] + bth[buf[i++]] +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] + '-' +
+          bth[buf[i++]] + bth[buf[i++]] +
+          bth[buf[i++]] + bth[buf[i++]] +
+          bth[buf[i++]] + bth[buf[i++]];
+}
+
+module.exports = bytesToUuid;
+
+
+/***/ }),
+/* 34 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var rng = __webpack_require__(32);
+var bytesToUuid = __webpack_require__(33);
 
 function v4(options, buf, offset) {
   var i = buf && offset || 0;
@@ -24681,12 +24961,12 @@ module.exports = v4;
 
 
 /***/ }),
-/* 32 */
+/* 35 */
 /***/ (function(module, exports, __webpack_require__) {
 
-const yo = __webpack_require__(33);
+const yo = __webpack_require__(36);
 const {MicropedeClient, GenerateClientId} = __webpack_require__(14);
-const MicropedeAsync  = __webpack_require__(88);
+const MicropedeAsync  = __webpack_require__(89);
 
 window.MicropedeAsync = MicropedeAsync;
 
@@ -24700,6 +24980,9 @@ class MessageLogger extends MicropedeClient {
   listen() {
     this.onStateMsg("{pluginName}", "{val}", this.logOutput.bind(this));
   }
+
+  get isPlugin() {return true}
+
   logOutput(payload, params) {
     this.messageLog.appendChild(yo`<li>${params.pluginName}, ${params.val}, ${payload}</li>`);
   }
@@ -24714,6 +24997,9 @@ class MessageGenerator extends MicropedeClient {
   listen() {
     this.bindStateMsg('blah', 'set-blah')
   }
+
+  get isPlugin() {return true}
+
   inputChanged(e) {
     this.inputValue = e.target.value;
   }
@@ -24745,12 +25031,12 @@ module.exports = () => {
 
 
 /***/ }),
-/* 33 */
+/* 36 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var bel = __webpack_require__(34) // turns template tag into DOM elements
-var morphdom = __webpack_require__(41) // efficiently diffs + morphs two DOM elements
-var defaultEvents = __webpack_require__(42) // default events to be copied when dom elements update
+var bel = __webpack_require__(37) // turns template tag into DOM elements
+var morphdom = __webpack_require__(44) // efficiently diffs + morphs two DOM elements
+var defaultEvents = __webpack_require__(45) // default events to be copied when dom elements update
 
 module.exports = bel
 
@@ -24793,12 +25079,12 @@ module.exports.update = function (fromNode, toNode, opts) {
 
 
 /***/ }),
-/* 34 */
+/* 37 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var document = __webpack_require__(13)
-var hyperx = __webpack_require__(36)
-var onload = __webpack_require__(38)
+var hyperx = __webpack_require__(39)
+var onload = __webpack_require__(41)
 
 var SVGNS = 'http://www.w3.org/2000/svg'
 var XLINKNS = 'http://www.w3.org/1999/xlink'
@@ -24952,16 +25238,16 @@ module.exports.createElement = belCreateElement
 
 
 /***/ }),
-/* 35 */
+/* 38 */
 /***/ (function(module, exports) {
 
 /* (ignored) */
 
 /***/ }),
-/* 36 */
+/* 39 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var attrToProp = __webpack_require__(37)
+var attrToProp = __webpack_require__(40)
 
 var VAR = 0, TEXT = 1, OPEN = 2, CLOSE = 3, ATTR = 4
 var ATTR_KEY = 5, ATTR_KEY_W = 6
@@ -25245,7 +25531,7 @@ function selfClosing (tag) { return closeRE.test(tag) }
 
 
 /***/ }),
-/* 37 */
+/* 40 */
 /***/ (function(module, exports) {
 
 module.exports = attributeToProperty
@@ -25270,13 +25556,13 @@ function attributeToProperty (h) {
 
 
 /***/ }),
-/* 38 */
+/* 41 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* global MutationObserver */
 var document = __webpack_require__(13)
-var window = __webpack_require__(39)
-var assert = __webpack_require__(40)
+var window = __webpack_require__(42)
+var assert = __webpack_require__(43)
 var watch = Object.create(null)
 var KEY_ID = 'onloadid' + (new Date() % 9e6).toString(36)
 var KEY_ATTR = 'data-' + KEY_ID
@@ -25378,7 +25664,7 @@ function eachMutation (nodes, fn) {
 
 
 /***/ }),
-/* 39 */
+/* 42 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {var win;
@@ -25398,7 +25684,7 @@ module.exports = win;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0)))
 
 /***/ }),
-/* 40 */
+/* 43 */
 /***/ (function(module, exports) {
 
 assert.notEqual = notEqual
@@ -25426,7 +25712,7 @@ function assert (t, m) {
 
 
 /***/ }),
-/* 41 */
+/* 44 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -26115,7 +26401,7 @@ module.exports = morphdom;
 
 
 /***/ }),
-/* 42 */
+/* 45 */
 /***/ (function(module, exports) {
 
 module.exports = [
@@ -26157,7 +26443,7 @@ module.exports = [
 
 
 /***/ }),
-/* 43 */
+/* 46 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;//     Backbone.js 1.3.3
@@ -26176,7 +26462,7 @@ module.exports = [
 
   // Set up Backbone appropriately for the environment. Start with AMD.
   if (true) {
-    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(44), __webpack_require__(45), exports], __WEBPACK_AMD_DEFINE_RESULT__ = (function(_, $, exports) {
+    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(47), __webpack_require__(48), exports], __WEBPACK_AMD_DEFINE_RESULT__ = (function(_, $, exports) {
       // Export global even in AMD case in case this script is loaded with
       // others that may still expect a global Backbone.
       root.Backbone = factory(root, exports, _, $);
@@ -28085,7 +28371,7 @@ module.exports = [
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0)))
 
 /***/ }),
-/* 44 */
+/* 47 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;//     Underscore.js 1.8.3
@@ -29640,7 +29926,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;//     Underscor
 
 
 /***/ }),
-/* 45 */
+/* 48 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -39900,7 +40186,7 @@ return jQuery;
 
 
 /***/ }),
-/* 46 */
+/* 49 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {module.exports = false;
@@ -39913,13 +40199,13 @@ try {
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0)))
 
 /***/ }),
-/* 47 */
+/* 50 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 /* WEBPACK VAR INJECTION */(function(process) {
 
-var MqttClient = __webpack_require__(48)
+var MqttClient = __webpack_require__(51)
 var Store = __webpack_require__(17)
 var url = __webpack_require__(11)
 var xtend = __webpack_require__(10)
@@ -40065,7 +40351,7 @@ module.exports.Store = Store
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1)))
 
 /***/ }),
-/* 48 */
+/* 51 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40077,11 +40363,11 @@ module.exports.Store = Store
 var events = __webpack_require__(5)
 var Store = __webpack_require__(17)
 var eos = __webpack_require__(24)
-var mqttPacket = __webpack_require__(62)
+var mqttPacket = __webpack_require__(65)
 var Writable = __webpack_require__(9).Writable
 var inherits = __webpack_require__(2)
-var reInterval = __webpack_require__(72)
-var validations = __webpack_require__(73)
+var reInterval = __webpack_require__(75)
+var validations = __webpack_require__(76)
 var xtend = __webpack_require__(10)
 var setImmediate = global.setImmediate || function (callback) {
   // works in node v0.8
@@ -41142,7 +41428,7 @@ module.exports = MqttClient
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0), __webpack_require__(1)))
 
 /***/ }),
-/* 49 */
+/* 52 */
 /***/ (function(module, exports) {
 
 var toString = {}.toString;
@@ -41153,7 +41439,7 @@ module.exports = Array.isArray || function (arr) {
 
 
 /***/ }),
-/* 50 */
+/* 53 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -41274,7 +41560,7 @@ function fromByteArray (uint8) {
 
 
 /***/ }),
-/* 51 */
+/* 54 */
 /***/ (function(module, exports) {
 
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
@@ -41364,7 +41650,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
 
 
 /***/ }),
-/* 52 */
+/* 55 */
 /***/ (function(module, exports) {
 
 var toString = {}.toString;
@@ -41375,13 +41661,13 @@ module.exports = Array.isArray || function (arr) {
 
 
 /***/ }),
-/* 53 */
+/* 56 */
 /***/ (function(module, exports) {
 
 /* (ignored) */
 
 /***/ }),
-/* 54 */
+/* 57 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -41461,7 +41747,7 @@ module.exports = function () {
 }();
 
 /***/ }),
-/* 55 */
+/* 58 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var apply = Function.prototype.apply;
@@ -41514,13 +41800,13 @@ exports._unrefActive = exports.active = function(item) {
 };
 
 // setimmediate attaches itself to the global object
-__webpack_require__(56);
+__webpack_require__(59);
 exports.setImmediate = setImmediate;
 exports.clearImmediate = clearImmediate;
 
 
 /***/ }),
-/* 56 */
+/* 59 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, process) {(function (global, undefined) {
@@ -41713,7 +41999,7 @@ exports.clearImmediate = clearImmediate;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0), __webpack_require__(1)))
 
 /***/ }),
-/* 57 */
+/* 60 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {
@@ -41787,7 +42073,7 @@ function config (name) {
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0)))
 
 /***/ }),
-/* 58 */
+/* 61 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* eslint-disable node/no-deprecated-api */
@@ -41855,7 +42141,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
 
 
 /***/ }),
-/* 59 */
+/* 62 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -41908,10 +42194,10 @@ PassThrough.prototype._transform = function (chunk, encoding, cb) {
 };
 
 /***/ }),
-/* 60 */
+/* 63 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var wrappy = __webpack_require__(61)
+var wrappy = __webpack_require__(64)
 module.exports = wrappy(once)
 module.exports.strict = wrappy(onceStrict)
 
@@ -41956,7 +42242,7 @@ function onceStrict (fn) {
 
 
 /***/ }),
-/* 61 */
+/* 64 */
 /***/ (function(module, exports) {
 
 // Returns a wrapper function that returns a wrapped callback
@@ -41995,28 +42281,28 @@ function wrappy (fn, cb) {
 
 
 /***/ }),
-/* 62 */
+/* 65 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-exports.parser = __webpack_require__(63)
-exports.generate = __webpack_require__(70)
+exports.parser = __webpack_require__(66)
+exports.generate = __webpack_require__(73)
 exports.writeToStream = __webpack_require__(26)
 
 
 /***/ }),
-/* 63 */
+/* 66 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var bl = __webpack_require__(64)
+var bl = __webpack_require__(67)
 var inherits = __webpack_require__(2)
 var EE = __webpack_require__(5).EventEmitter
-var Packet = __webpack_require__(69)
+var Packet = __webpack_require__(72)
 var constants = __webpack_require__(25)
 
 function Parser () {
@@ -42389,11 +42675,11 @@ module.exports = Parser
 
 
 /***/ }),
-/* 64 */
+/* 67 */
 /***/ (function(module, exports, __webpack_require__) {
 
-/* WEBPACK VAR INJECTION */(function(Buffer) {var DuplexStream = __webpack_require__(65)
-  , util         = __webpack_require__(66)
+/* WEBPACK VAR INJECTION */(function(Buffer) {var DuplexStream = __webpack_require__(68)
+  , util         = __webpack_require__(69)
 
 
 function BufferList (callback) {
@@ -42676,14 +42962,14 @@ module.exports = BufferList
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7).Buffer))
 
 /***/ }),
-/* 65 */
+/* 68 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports = __webpack_require__(4);
 
 
 /***/ }),
-/* 66 */
+/* 69 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, process) {// Copyright Joyent, Inc. and other Node contributors.
@@ -43211,7 +43497,7 @@ function isPrimitive(arg) {
 }
 exports.isPrimitive = isPrimitive;
 
-exports.isBuffer = __webpack_require__(67);
+exports.isBuffer = __webpack_require__(70);
 
 function objectToString(o) {
   return Object.prototype.toString.call(o);
@@ -43255,7 +43541,7 @@ exports.log = function() {
  *     prototype.
  * @param {function} superCtor Constructor function to inherit prototype from.
  */
-exports.inherits = __webpack_require__(68);
+exports.inherits = __webpack_require__(71);
 
 exports._extend = function(origin, add) {
   // Don't do anything if add isn't an object
@@ -43276,7 +43562,7 @@ function hasOwnProperty(obj, prop) {
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0), __webpack_require__(1)))
 
 /***/ }),
-/* 67 */
+/* 70 */
 /***/ (function(module, exports) {
 
 module.exports = function isBuffer(arg) {
@@ -43287,7 +43573,7 @@ module.exports = function isBuffer(arg) {
 }
 
 /***/ }),
-/* 68 */
+/* 71 */
 /***/ (function(module, exports) {
 
 if (typeof Object.create === 'function') {
@@ -43316,7 +43602,7 @@ if (typeof Object.create === 'function') {
 
 
 /***/ }),
-/* 69 */
+/* 72 */
 /***/ (function(module, exports) {
 
 
@@ -43334,7 +43620,7 @@ module.exports = Packet
 
 
 /***/ }),
-/* 70 */
+/* 73 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -43397,7 +43683,7 @@ module.exports = generate
 
 
 /***/ }),
-/* 71 */
+/* 74 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -43429,7 +43715,7 @@ module.exports = {
 
 
 /***/ }),
-/* 72 */
+/* 75 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -43493,7 +43779,7 @@ module.exports = reInterval;
 
 
 /***/ }),
-/* 73 */
+/* 76 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -43552,7 +43838,7 @@ module.exports = {
 
 
 /***/ }),
-/* 74 */
+/* 77 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(module, global) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/punycode v1.4.1 by @mathias */
@@ -44091,7 +44377,7 @@ module.exports = {
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(16)(module), __webpack_require__(0)))
 
 /***/ }),
-/* 75 */
+/* 78 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -44114,18 +44400,18 @@ module.exports = {
 
 
 /***/ }),
-/* 76 */
+/* 79 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-exports.decode = exports.parse = __webpack_require__(77);
-exports.encode = exports.stringify = __webpack_require__(78);
+exports.decode = exports.parse = __webpack_require__(80);
+exports.encode = exports.stringify = __webpack_require__(81);
 
 
 /***/ }),
-/* 77 */
+/* 80 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -44216,7 +44502,7 @@ var isArray = Array.isArray || function (xs) {
 
 
 /***/ }),
-/* 78 */
+/* 81 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -44308,25 +44594,25 @@ var objectKeys = Object.keys || function (obj) {
 
 
 /***/ }),
-/* 79 */
+/* 82 */
 /***/ (function(module, exports) {
 
 /* (ignored) */
 
 /***/ }),
-/* 80 */
+/* 83 */
 /***/ (function(module, exports) {
 
 /* (ignored) */
 
 /***/ }),
-/* 81 */
+/* 84 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(Buffer, process) {var stream = __webpack_require__(9)
 var eos = __webpack_require__(24)
 var inherits = __webpack_require__(2)
-var shift = __webpack_require__(82)
+var shift = __webpack_require__(85)
 
 var SIGNAL_FLUSH = new Buffer([0])
 
@@ -44566,7 +44852,7 @@ module.exports = Duplexify
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(7).Buffer, __webpack_require__(1)))
 
 /***/ }),
-/* 82 */
+/* 85 */
 /***/ (function(module, exports) {
 
 module.exports = shift
@@ -44592,7 +44878,7 @@ function getStateLength (state) {
 
 
 /***/ }),
-/* 83 */
+/* 86 */
 /***/ (function(module, exports) {
 
 
@@ -44610,74 +44896,7 @@ module.exports = ws
 
 
 /***/ }),
-/* 84 */
-/***/ (function(module, exports) {
-
-// Unique ID creation requires a high quality random # generator.  In the
-// browser this is a little complicated due to unknown quality of Math.random()
-// and inconsistent support for the `crypto` API.  We do the best we can via
-// feature-detection
-
-// getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
-var getRandomValues = (typeof(crypto) != 'undefined' && crypto.getRandomValues.bind(crypto)) ||
-                      (typeof(msCrypto) != 'undefined' && msCrypto.getRandomValues.bind(msCrypto));
-if (getRandomValues) {
-  // WHATWG crypto RNG - http://wiki.whatwg.org/wiki/Crypto
-  var rnds8 = new Uint8Array(16); // eslint-disable-line no-undef
-
-  module.exports = function whatwgRNG() {
-    getRandomValues(rnds8);
-    return rnds8;
-  };
-} else {
-  // Math.random()-based (RNG)
-  //
-  // If all else fails, use Math.random().  It's fast, but is of unspecified
-  // quality.
-  var rnds = new Array(16);
-
-  module.exports = function mathRNG() {
-    for (var i = 0, r; i < 16; i++) {
-      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
-      rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
-    }
-
-    return rnds;
-  };
-}
-
-
-/***/ }),
-/* 85 */
-/***/ (function(module, exports) {
-
-/**
- * Convert array of 16 byte values to UUID string format of the form:
- * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
- */
-var byteToHex = [];
-for (var i = 0; i < 256; ++i) {
-  byteToHex[i] = (i + 0x100).toString(16).substr(1);
-}
-
-function bytesToUuid(buf, offset) {
-  var i = offset || 0;
-  var bth = byteToHex;
-  return bth[buf[i++]] + bth[buf[i++]] +
-          bth[buf[i++]] + bth[buf[i++]] + '-' +
-          bth[buf[i++]] + bth[buf[i++]] + '-' +
-          bth[buf[i++]] + bth[buf[i++]] + '-' +
-          bth[buf[i++]] + bth[buf[i++]] + '-' +
-          bth[buf[i++]] + bth[buf[i++]] +
-          bth[buf[i++]] + bth[buf[i++]] +
-          bth[buf[i++]] + bth[buf[i++]];
-}
-
-module.exports = bytesToUuid;
-
-
-/***/ }),
-/* 86 */
+/* 87 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -45370,7 +45589,7 @@ RouteRecognizer.prototype.map = map;
 
 
 /***/ }),
-/* 87 */
+/* 88 */
 /***/ (function(module, exports) {
 
 /* Mixins for Mqtt Messages */
@@ -45433,21 +45652,28 @@ if (typeof module !== 'undefined' && module.exports) {
 
 
 /***/ }),
-/* 88 */
+/* 89 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* Launch MicropedeClients asynchronously */
 const _ = __webpack_require__(15);
-const uuidv4 = __webpack_require__(31);
+const uuidv1 = __webpack_require__(31);
+const uuidv4 = __webpack_require__(34);
 const {MicropedeClient, GenerateClientId} = __webpack_require__(14);
 const DEFAULT_TIMEOUT = 5000;
+
+const CLIENT_OPTIONS = {resubscribe: false};
 
 class MicropedeAsync {
   constructor(appName, host="localhost", port=undefined, version='0.0.0') {
     if (appName == undefined) throw "appName undefined";
-    const name = `micropede-async-${uuidv4()}`;
-    this.client = new MicropedeClient(appName, host, port, name, version);
-    this.client.listen = _.noop;
+    const name = `micropede-async-${uuidv1()}-${uuidv4()}`;
+    try {
+      this.client = new MicropedeClient(appName, host, port, name, version, CLIENT_OPTIONS);
+      this.client.listen = _.noop;
+    } catch (e) {
+      console.error(this.dumpStack(this.name, e));
+    }
   }
   async reset() {
     /* Reset the state of the client (use between actions)*/
@@ -45472,37 +45698,41 @@ class MicropedeAsync {
     let timer;
 
     try {
-      // Fail if this client is awaiting another subscription
       this.enforceSingleSubscription(label);
-
-      // Reset the client
       await this.reset();
-
-      // Subscribe to a state channel of another plugin, and return
-      // the first response
-      return new Promise((resolve, reject) => {
-        this.client.onStateMsg(sender, prop, (payload, params) => {
-          console.log("msg received");
-          if (timer) clearTimeout(timer);
-          done = true;
-          this.client.disconnectClient().then((d) => {
-            resolve(payload);
-          });
-        });
-
-        // Reject promise once a given timeout exceeds
-        timer = setTimeout(()=>{
-          console.log("timeout reached");
-          if (!done) {
-            this.client.disconnectClient().then((d) => {
-              reject([label, topic, `timeout ${timeout}ms`]);
-            });
-          }
-        }, timeout);
-      });
     } catch (e) {
       throw(this.dumpStack([label, topic], e));
     }
+
+    // Subscribe to a state channel of another plugin, and return
+    // the first response
+    return new Promise((resolve, reject) => {
+
+      // Success case: (receive message from state channel)
+      this.client.onStateMsg(sender, prop, (payload, params) => {
+        if (timer) clearTimeout(timer);
+        done = true;
+        this.client.disconnectClient().then((d) => {
+          resolve(payload);
+        }).catch((e) => {
+          reject(e);
+        });
+      });
+
+      // Rejection case: (client times out before receiving state msg)
+      timer = setTimeout( () => {
+        console.error("TIMING OUT::", topic);
+        if (!done) {
+          done = true;
+          this.client.disconnectClient().then((d) => {
+            reject([label, topic, `timeout ${timeout}ms`]);
+          }).catch((e) => {
+            reject([label, topic, `timeout ${timeout}ms`]);
+          });
+        }
+      }, timeout);
+
+    });
   }
 
   async getSubscriptions(receiver, timeout=DEFAULT_TIMEOUT) {
@@ -45556,8 +45786,10 @@ class MicropedeAsync {
     } catch (e) {
       throw(this.dumpStack([label, topic], e));
     }
+
     // Await for notifiaton from the receiving plugin
     return new Promise((resolve, reject) => {
+
       this.client.onNotifyMsg(receiver, action, (payload, params) => {
         if (timer) clearTimeout(timer);
         done = true;
@@ -45571,15 +45803,22 @@ class MicropedeAsync {
             console.warn([label, "message did not contain status"]);
           }
           resolve(payload);
+        }).catch((e)=>{
+          reject(e)
         });
       });
+
       this.client.sendMessage(topic, val);
 
       // Cause the notification to fail after given timeout
       if (!noTimeout) {
-        timer = setTimeout(()=>{
+        timer = setTimeout( () => {
+          console.error("TIMING OUT::", topic);
           if (!done) {
+            done = true;
             this.client.disconnectClient().then((d) => {
+              reject([label, topic, `timeout ${timeout}ms`]);
+            }).catch((e) => {
               reject([label, topic, `timeout ${timeout}ms`]);
             });
           }
@@ -45592,6 +45831,7 @@ class MicropedeAsync {
 
   dumpStack(label, err) {
     /* Dump stack between plugins (technique to join stack of multiple processes') */
+    if (!err) return _.flattenDeep([label, 'unknown error']);
     if (err.stack)
       return _.flattenDeep([label, JSON.stringify(err.stack).replace(/\\/g, "").replace(/"/g,"").split("\n")]);
     if (!err.stack)

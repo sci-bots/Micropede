@@ -5,14 +5,18 @@ const uuidv4 = require('uuid/v4');
 const {MicropedeClient, GenerateClientId} = require('./client.js');
 const DEFAULT_TIMEOUT = 5000;
 
-const CLIENT_OPTIONS = {resubscribe: false, keepalive: 0};
+const CLIENT_OPTIONS = {resubscribe: false};
 
 class MicropedeAsync {
   constructor(appName, host="localhost", port=undefined, version='0.0.0') {
     if (appName == undefined) throw "appName undefined";
     const name = `micropede-async-${uuidv1()}-${uuidv4()}`;
-    this.client = new MicropedeClient(appName, host, port, name, version, CLIENT_OPTIONS);
-    this.client.listen = _.noop;
+    try {
+      this.client = new MicropedeClient(appName, host, port, name, version, CLIENT_OPTIONS);
+      this.client.listen = _.noop;
+    } catch (e) {
+      console.error(this.dumpStack(this.name, e));
+    }
   }
   async reset() {
     /* Reset the state of the client (use between actions)*/
@@ -47,7 +51,7 @@ class MicropedeAsync {
     // the first response
     return new Promise((resolve, reject) => {
 
-      // Success case: (receivce message from state channel)
+      // Success case: (receive message from state channel)
       this.client.onStateMsg(sender, prop, (payload, params) => {
         if (timer) clearTimeout(timer);
         done = true;
@@ -60,7 +64,15 @@ class MicropedeAsync {
 
       // Rejection case: (client times out before receiving state msg)
       timer = setTimeout( () => {
-        if (!done) reject([label, topic, `timeout ${timeout}ms`]);
+        console.error("TIMING OUT::", topic);
+        if (!done) {
+          done = true;
+          this.client.disconnectClient().then((d) => {
+            reject([label, topic, `timeout ${timeout}ms`]);
+          }).catch((e) => {
+            reject([label, topic, `timeout ${timeout}ms`]);
+          });
+        }
       }, timeout);
 
     });
@@ -120,10 +132,11 @@ class MicropedeAsync {
 
     // Await for notifiaton from the receiving plugin
     return new Promise((resolve, reject) => {
+
       this.client.onNotifyMsg(receiver, action, (payload, params) => {
+        if (timer) clearTimeout(timer);
+        done = true;
         this.client.disconnectClient().then((d) => {
-          if (timer) clearTimeout(timer);
-          done = true;
           if (payload.status) {
             if (payload.status != 'success') {
               reject(_.flattenDeep([label, _.get(payload, 'response')]));
@@ -133,14 +146,25 @@ class MicropedeAsync {
             console.warn([label, "message did not contain status"]);
           }
           resolve(payload);
-        }).catch((e)=>reject(e));
+        }).catch((e)=>{
+          reject(e)
+        });
       });
+
       this.client.sendMessage(topic, val);
 
       // Cause the notification to fail after given timeout
       if (!noTimeout) {
-        timer = setTimeout(() => {
-          if (!done) reject([label, topic, `timeout ${timeout}ms`]);
+        timer = setTimeout( () => {
+          console.error("TIMING OUT::", topic);
+          if (!done) {
+            done = true;
+            this.client.disconnectClient().then((d) => {
+              reject([label, topic, `timeout ${timeout}ms`]);
+            }).catch((e) => {
+              reject([label, topic, `timeout ${timeout}ms`]);
+            });
+          }
         }, timeout);
       }
 
