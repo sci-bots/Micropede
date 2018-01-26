@@ -3712,17 +3712,23 @@ function TrackClient(client, isPlugin) {
 
 function FlushClients() {
   if (!window) return;
-  _.each(window.openClients, (c) => {
+  const _openClients = _.clone(window.openClients);
+  window.openClients = [];
+
+  _.each(_openClients, (c) => {
     try {
       let socket = c.stream.socket;
       socket.onclose = _.noop;
+      socket.onerror = () => {console.log("error closing client!")}
       let readyState = socket.readyState;
       switch (readyState) {
         case socket.OPEN:
-          socket.close();
+          c.end(true);
+          // socket.close();
           break;
         case socket.CONNECTING:
-          socket.close();
+          c.end(true);
+          // socket.close();
           break;
         default:
           break;
@@ -3733,7 +3739,6 @@ function FlushClients() {
     }
   });
 
-  window.openClients = [];
 }
 
 if (!isNode) window.FlushClients = FlushClients;
@@ -3839,15 +3844,18 @@ class MicropedeClient {
 
 
   connectClient(clientId, host, port, timeout=DEFAULT_TIMEOUT) {
+
     let options  = {clientId: clientId};
-    if (!this.isPlugin) options = { clientId: clientId, resubscribe: false, reconnectPeriod: -1};
+    if (!this.isPlugin) options = { clientId: clientId, resubscribe: false, reconnectPeriod: -1, queueQoSZero: false};
     let client = mqtt.connect(`mqtt://${host}:${port}`, options);
+    this.off();
 
     TrackClient(client, this.isPlugin);
 
     return new Promise((resolve, reject) => {
       if (!isNode) {
         client.stream.socket.onerror = (e) => {
+          console.log("WEBSOCKET STREAM ERROR");
           FlushClients();
           reject(DumpStack(this.name ,e));
         };
@@ -3914,7 +3922,7 @@ class MicropedeClient {
 
           if (!isNode) {
             let socket = this.client.stream.socket;
-            if (socket.readyState == socket.OPEN) socket.close();
+            // if (socket.readyState == socket.OPEN) socket.close();
           }
 
         }
@@ -3939,9 +3947,6 @@ class MicropedeClient {
     if (topic == undefined || topic == null) return;
     if (buf.toString() == undefined) return;
     if (buf.toString().length <= 0) return;
-    // console.log("ONMESSAGE:::", topic);
-    // console.log("FOR:::", this.name);
-
     try {
 
       let msg;
@@ -3962,14 +3967,26 @@ class MicropedeClient {
     }
   }
 
+  async setState(key, value) {
+    const topic = `${this.appName}/${this.name}/state/${key}`;
+    await this.sendMessage(topic, value, true, 0, false);
+  }
+
   sendMessage(topic, msg={}, retain=false, qos=0, dup=false){
+
     if (_.isPlainObject(msg) && msg.__head__ == undefined) {
       msg.__head__ = WrapData(null, null, this.name, this.version).__head__;
     }
 
     const message = JSON.stringify(msg);
     this.lastMessage = topic;
-    this.client.publish(topic, message, {retain, qos, dup});
+
+    return new Promise((resolve, reject) => {
+      this.client.publish(topic, message, {retain, qos, dup}, (e) => {
+        if (e) reject([this.name, e]);
+        resolve();
+      });
+    });
   }
 
 }

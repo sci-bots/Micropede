@@ -47,12 +47,12 @@ class MicropedeBroker {
 
   topicPublished(packet) {
     console.log("TOPIC PUBLISHED:::");
-    console.log(packet.topic);
+    console.log(packet);
   }
 
   clientConnected(client) {
-    console.log("CLIENT CONNECTED:::");
-    console.log(client.id);
+    // console.log("CLIENT CONNECTED:::");
+    // console.log(client.id);
 
     const [name, path, app, uid] = client.id.split(">>");
     activeClients += 1;
