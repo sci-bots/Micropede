@@ -194,6 +194,12 @@ class MicropedeClient {
     return this.notifySender(payload, this.subscriptions, "get-subscriptions");
   }
 
+  exit (payload) {
+    if (!isNode) return;
+    console.log("Terminating plugin", this.name);
+    process.exit();
+  }
+
   notifySender(payload, response, endpoint, status='success') {
     if (status != 'success') {
       console.error(_.flattenDeep([response]));
@@ -240,9 +246,14 @@ class MicropedeClient {
           this.subscriptions = [];
           if (this.isPlugin == true) {
             this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
-              this.listen();
-              this.defaultSubCount = this.subscriptions.length;
-              resolve(true);
+              if (isNode) {
+                this.onTriggerMsg("exit", this.exit.bind(this)).then((d) => {
+                  this.listen();
+                  this.defaultSubCount = this.subscriptions.length;
+                  client.on("close", this.exit.bind(this));
+                  resolve(true);
+                });
+              }
             });
           } else {
             this.listen();
@@ -255,7 +266,6 @@ class MicropedeClient {
         }
     });
     client.on("message", this.onMessage.bind(this));
-    // client.on("reconnect", this.onReconnect.bind(this));
 
     setTimeout( () => {
       reject(`connect timeout ${timeout}ms`);
@@ -296,18 +306,6 @@ class MicropedeClient {
       }
 
     });
-  }
-
-  async onReconnect() {
-    console.log("ATTEMPTING TO RECONNECT::", this.name, this.lastMessage);
-    // if (alert) alert();
-
-    if (this.client) {
-      this.client.end(true);
-      delete this.client;
-      console.log(this.client);
-    }
-    delete this;
   }
 
   onMessage(topic, buf){
