@@ -4,6 +4,7 @@ const _ = require('lodash');
 const backbone = require('backbone');
 const mosca = require('mosca');
 const leveljs = require('level-js');
+// const jsondown = require('jsondown');
 
 let activeClients = 0;
 
@@ -25,7 +26,7 @@ class MicropedeBroker {
     // settings.publishSubscriptions = false;
 
     const db_settings         = new Object();
-    db_settings.path          = path.join(__dirname, "db");
+    db_settings.path          = path.join(".", "db");
     db_settings.subscriptions = 0;
     db_settings.packets       = 0;
     db_settings.db            = leveljs;

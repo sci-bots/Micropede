@@ -253,6 +253,10 @@ class MicropedeClient {
                   client.on("close", this.exit.bind(this));
                   resolve(true);
                 });
+              } else {
+                this.listen();
+                this.defaultSubCount = this.subscriptions.length;
+                resolve(true);
               }
             });
           } else {
