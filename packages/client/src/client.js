@@ -189,7 +189,7 @@ class MicropedeClient {
     });
   }
 
-  getSubscriptions(payload, name) {
+  _getSubscriptions(payload, name) {
     const LABEL = `${this.appName}::getSubscriptions`;
     return this.notifySender(payload, this.subscriptions, "get-subscriptions");
   }
@@ -245,7 +245,7 @@ class MicropedeClient {
           this.client = client;
           this.subscriptions = [];
           if (this.isPlugin == true) {
-            this.onTriggerMsg("get-subscriptions", this.getSubscriptions.bind(this)).then((d) => {
+            this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this)).then((d) => {
               if (isNode) {
                 this.onTriggerMsg("exit", this.exit.bind(this)).then((d) => {
                   this.listen();

@@ -1,0 +1,13 @@
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "micropede.client"
+author = "Sci-Bots"
+author-email = "info@sci-bots.com"
+home-page = "sci-bots.com"
+license = "BSD-2-Clause"
+requires = ["paho-mqtt", "wheezy.routing", "onoff"]
+requires-python = ">=3.6"
+description-file = "README.md"
