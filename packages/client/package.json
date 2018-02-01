@@ -1,6 +1,6 @@
 {
   "name": "@micropede/client",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Web based JS client for Micropede Application Framework",
   "main": "src/client.js",
   "scripts": {
