@@ -1,7 +1,7 @@
 {
 	"scripts": {
 		"start": "npm run --prefix ./packages/sample-app start",
-		"bootstrap": "lerna bootstrap --hoist --no-optional"
+		"bootstrap": "lerna bootstrap"
 	},
 	"devDependencies": {
 		"lerna": "^2.5.1"
