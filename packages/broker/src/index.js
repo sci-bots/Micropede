@@ -47,8 +47,8 @@ class MicropedeBroker {
   }
 
   topicPublished(packet) {
-    console.log("TOPIC PUBLISHED:::");
-    console.log(packet);
+    // console.log("TOPIC PUBLISHED:::");
+    // console.log(packet);
   }
 
   clientConnected(client) {
