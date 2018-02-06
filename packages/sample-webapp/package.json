@@ -1,6 +1,6 @@
 {
   "name": "@micropede/sample-webapp",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "description": "Sample Web App of Micropede",
   "main": "src/index.js",
   "scripts": {
@@ -20,8 +20,8 @@
     "webpack": "^3.10.0"
   },
   "dependencies": {
-    "@micropede/broker": "^0.0.21",
-    "@micropede/client": "^0.0.19",
+    "@micropede/broker": "^0.0.22",
+    "@micropede/client": "^0.0.22",
     "express": "^4.16.2",
     "jquery": "^3.2.1"
   },
