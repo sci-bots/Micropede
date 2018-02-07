@@ -111,7 +111,7 @@ function FlushClients() {
 if (!isNode) window.FlushClients = FlushClients;
 
 class MicropedeClient {
-  constructor(appName, host="localhost", port, name, version='0.0.0', options=undefined) {
+  constructor(appName, host="localhost", port, name, version='0.0.0', options, electron) {
     if (appName == undefined) throw "appName undefined";
     if (port == undefined) port = isNode ? 1883 : 8083;
     _.extend(this, backbone.Events);
@@ -129,6 +129,12 @@ class MicropedeClient {
     this.version = version;
     this.options = options ? options : { resubscribe: false};
     this.lastMessage = null;
+
+    if (electron !== undefined) {
+      const {ipcRenderer} = electron;
+      this.ipcRenderer = ipcRenderer;
+    }
+
     try {
       this.connectClient(clientId, host, port);
     } catch (e) {
@@ -143,6 +149,10 @@ class MicropedeClient {
 
   addBinding(channel, event, retain=false, qos=0, dup=false) {
     return this.on(event, (d) => this.sendMessage(channel, d, retain, qos, dup));
+  }
+
+  sendIpcMessage(message) {
+    if (this.ipcRenderer) this.ipcRenderer.send(message);
   }
 
   async addSubscription(channel, handler) {
