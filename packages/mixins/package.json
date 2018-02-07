@@ -1,6 +1,6 @@
 {
   "name": "@micropede/mixins",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "Micropede Mixins",
   "main": "mqtt-messages.js",
   "scripts": {
