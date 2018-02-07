@@ -86,13 +86,11 @@ class MicropedeAsync {
 
   async putPlugin(receiver, property, val, timeout=DEFAULT_TIMEOUT) {
     /* Call put on another plugin */
-
     // Wrap string payloads into objects (since the put endpoint expects headers)
     if (!_.isPlainObject(val)) {
       let msg = {}; _.set(msg, property, val);
       val = msg;
     }
-
     // Call a put action on the receiving plugin
     const result = await this.callAction(receiver, property, val, "put",
           timeout);
