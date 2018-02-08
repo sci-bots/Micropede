@@ -26,12 +26,13 @@ class MicropedeBroker {
     // settings.publishSubscriptions = false;
 
     const db_settings         = new Object();
-    db_settings.path          = path.join(".", "db");
+    db_settings.path          = appName
     db_settings.subscriptions = 0;
     db_settings.packets       = 0;
     db_settings.db            = leveljs;
 
     this.db = new mosca.persistence.LevelUp(db_settings);
+    this.db_settings = db_settings;
     this.settings = settings;
     this.server = new mosca.Server(settings);
     this.db.wire(this.server);
