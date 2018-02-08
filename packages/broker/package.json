@@ -1,6 +1,6 @@
 {
   "name": "@micropede/broker",
-  "version": "0.0.23",
+  "version": "0.0.25",
   "description": "Mosca Broker for Micropede Application Framework",
   "main": "src/index.js",
   "scripts": {
