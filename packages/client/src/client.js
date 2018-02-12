@@ -268,6 +268,10 @@ class MicropedeClient {
                 this.defaultSubCount = this.subscriptions.length;
                 resolve(true);
               }
+              const topic = `${this.appName}/${this.name}/connected`;
+              this.client.publish(topic, 'true', (err) => {
+                if (err) console.error(err);
+              });
             });
           } else {
             this.listen();
