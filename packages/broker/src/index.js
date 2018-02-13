@@ -3,7 +3,9 @@ const path = require('path');
 const _ = require('lodash');
 const backbone = require('backbone');
 const mosca = require('mosca');
-const leveljs = require('level-js');
+const LD = require('localstorage-down');
+
+// const leveljs = require('level-js');
 // const jsondown = require('jsondown');
 
 let activeClients = 0;
@@ -21,15 +23,12 @@ class MicropedeBroker {
     const settings = new Object();
     settings.port  = brokerPort;
     settings.http  = http;
-    // settings.publishNewClient = false;
-    // settings.publishClientDisconnect = false;
-    // settings.publishSubscriptions = false;
 
     const db_settings         = new Object();
     db_settings.path          = appName
     db_settings.subscriptions = 0;
     db_settings.packets       = 0;
-    db_settings.db            = leveljs;
+    db_settings.db            = LD;
 
     this.db = new mosca.persistence.LevelUp(db_settings);
     this.db_settings = db_settings;
