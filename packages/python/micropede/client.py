@@ -91,7 +91,7 @@ class MicropedeClient(Topics):
     """
 
     def __init__(self, app_name, host="localhost", port=None, name=None,
-                 version='0.0.0'):
+                 version='0.0.0', loop_type="start"):
 
         if (app_name is None):
             raise("app_name is undefined")
@@ -117,6 +117,7 @@ class MicropedeClient(Topics):
         self.loop = asyncio.get_event_loop()
         self.safe = safe(self.loop)
         self.wait_for = self.loop.run_until_complete
+        self.loop_type = loop_type
         self.client = None
         self.wait_for(self.connect_client(client_id, host, port))
     @property
@@ -240,7 +241,11 @@ class MicropedeClient(Topics):
         self.client.on_connect = self.safe(on_connect)
         self.client.on_message = self.safe(self.on_message)
         self.client.connect(host=self.host, port=self.port)
-        self.client.loop_start()
+
+        if (self.loop_type == 'loop_start'):
+            self.client.loop_start()
+        else:
+            self.client.loop_forever()
 
         def on_timeout():
             if (future.done() == False):
