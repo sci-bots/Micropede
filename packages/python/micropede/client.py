@@ -91,7 +91,7 @@ class MicropedeClient(Topics):
     """
 
     def __init__(self, app_name, host="localhost", port=None, name=None,
-                 version='0.0.0', loop_type="start"):
+                 version='0.0.0'):
 
         if (app_name is None):
             raise("app_name is undefined")
@@ -117,9 +117,9 @@ class MicropedeClient(Topics):
         self.loop = asyncio.get_event_loop()
         self.safe = safe(self.loop)
         self.wait_for = self.loop.run_until_complete
-        self.loop_type = loop_type
         self.client = None
         self.wait_for(self.connect_client(client_id, host, port))
+
     @property
     def is_plugin(self):
         return not _.is_equal(self.listen, _.noop)
@@ -191,17 +191,16 @@ class MicropedeClient(Topics):
         return future
 
     def _get_subscriptions(self, payload, name):
-        LABEL = f'{this.app_name}::get_subscriptions'
-        return this.notify_sender(payload, this.subscriptions, 'get-subscriptions')
+        LABEL = f'{self.app_name}::get_subscriptions'
+        return self.notify_sender(payload, self.subscriptions, 'get-subscriptions')
 
-    def notify_sender(payload, response, endpoint, status='success'):
-        if (satus != 'success'):
+    def notify_sender(self, payload, response, endpoint, status='success'):
+        if (status != 'success'):
             response = _.flatten_deep(response)
         receiver = get_receiver(payload)
-        if (receiver is not None):
-            return receiver
+        
         self.send_message(
-            f'{this.app_name}/{this.name}/notify/{receiver}/{endpoint}',
+            f'{self.app_name}/{self.name}/notify/{receiver}/{endpoint}',
             wrap_data(None, {'status': status, 'response': response},
                       self.name, self.version)
         )
@@ -242,10 +241,7 @@ class MicropedeClient(Topics):
         self.client.on_message = self.safe(self.on_message)
         self.client.connect(host=self.host, port=self.port)
 
-        if (self.loop_type == 'loop_start'):
-            self.client.loop_start()
-        else:
-            self.client.loop_forever()
+        self.client.loop_start()
 
         def on_timeout():
             if (future.done() == False):
