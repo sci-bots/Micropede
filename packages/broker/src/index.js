@@ -1,3 +1,4 @@
+const {Console} = require('console');
 const path = require('path');
 
 const _ = require('lodash');
@@ -7,6 +8,8 @@ const LD = require('localstorage-down');
 
 // const leveljs = require('level-js');
 // const jsondown = require('jsondown');
+
+const console = new Console(process.stdout, process.stderr);
 
 let activeClients = 0;
 
@@ -52,27 +55,25 @@ class MicropedeBroker {
   }
 
   clientConnected(client) {
-    // console.log("CLIENT CONNECTED:::");
-    // console.log(client.id);
-
-    const [name, path, app, uid] = client.id.split(">>");
     activeClients += 1;
-    // console.log(`active clients: ${activeClients}`);
-    if (!name) return;
-
-    // if (!_.includes(name, 'micropede-async') && name != 'undefined'){
-    //   console.log('client connected', name);
-    // }
-
-    // if (path != undefined){
-    //   const sub = `${this.channel}/signal/client-connected`;
-    //   this.sendMessage(sub, {name, path});
-    // }
+    try {
+      const [name, path, appName, uid] = client.id.split(">>");
+      const topic = `${appName}/${name}/signal/connected`;
+      this.sendMessage(topic);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   clientDisconnected(client) {
     activeClients -= 1;
-    // console.log(`active clients: ${activeClients}`);
+    try {
+      const [name, path, appName, uid] = client.id.split(">>");
+      const topic = `${appName}/${name}/signal/disconnected`;
+      this.sendMessage(topic);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   sendMessage(topic, msg={}, retain=false, qos=0, dup=false){

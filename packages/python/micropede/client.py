@@ -30,8 +30,8 @@ def set_timeout(callback, timeout=DEFAULT_TIMEOUT):
 
 def camel_to_snake(s):
     # https://gist.github.com/jaytaylor/3660565
-    subbed = _underscorer1.sub(r'\1_\2', s)
-    return _underscorer2.sub(r'\1_\2', subbed).lower()
+    subbed = _underscorer1.sub(r'\1-\2', s)
+    return _underscorer2.sub(r'\1-\2', subbed).lower()
 
 
 def get_class_name(self):
@@ -132,7 +132,7 @@ class MicropedeClient(Topics):
     def listen(self, val):
         self.__listen = val
 
-    def exit():
+    def exit(self, *args, **kwargs):
         pass
 
     def add_binding(self, channel, event, retain=False, qos=0, dup=False):
