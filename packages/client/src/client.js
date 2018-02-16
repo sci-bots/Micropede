@@ -177,7 +177,7 @@ class MicropedeClient {
       return new Promise((resolve, reject) => {
         this.client.subscribe(sub, {qos: 0}, (err, granted) => {
           if (err) {reject(err); return}
-          resolve(granted);
+          resolve(channel);
         });
       });
 
@@ -268,10 +268,9 @@ class MicropedeClient {
                 this.defaultSubCount = this.subscriptions.length;
                 resolve(true);
               }
-              const topic = `${this.appName}/${this.name}/connected`;
-              this.client.publish(topic, 'true', (err) => {
-                if (err) console.error(err);
-              });
+
+              const topic = `${this.appName}/${this.name}/notify/${this.appName}/connected`
+              this.sendMessage(topic, 'true');
             });
           } else {
             this.listen();
@@ -342,7 +341,7 @@ class MicropedeClient {
 
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
-        result.handler(msg, result.params);
+        result.handler(msg, result.params, topic);
       }
     } catch (e) {
       console.error(topic, buf.toString());
