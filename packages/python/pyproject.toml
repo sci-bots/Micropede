@@ -8,6 +8,6 @@ author = "Sci-Bots"
 author-email = "info@sci-bots.com"
 home-page = "http://sci-bots.com"
 license = "BSD-2-Clause"
-requires = ["paho-mqtt", "wheezy.routing", "onoff"]
+requires = ["paho-mqtt", "wheezy.routing", "onoff", "jsonschema"]
 requires-python = ">=3.6"
 description-file = "README.md"

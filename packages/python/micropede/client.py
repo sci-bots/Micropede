@@ -14,9 +14,10 @@ import urllib
 import uuid
 from threading import Timer, Thread
 
+from jsonschema import validate
 import paho.mqtt.client as mqtt
-from wheezy.routing import PathRouter
 import pydash as _
+from wheezy.routing import PathRouter
 
 from .api import Topics
 
@@ -109,6 +110,7 @@ class MicropedeClient(Topics):
         self.app_name = app_name
         self.client_id = client_id
         self.name = name
+        self.schemas = {}
         self.subscriptions = []
         self.host = host
         self.port = port
@@ -138,6 +140,16 @@ class MicropedeClient(Topics):
     def add_binding(self, channel, event, retain=False, qos=0, dup=False):
         return self.on(event, lambda d: self.send_message(
             channel, d, retain, qos, dup))
+
+    def add_schema(self, name, schema):
+        self.schemas[name] = schema
+
+    def get_schemas(self, payload, name):
+        LABEL = f'{self.app_name}::get_schemas'
+        return self.notify_sender(payload, self.schemas, 'get-schemas')
+
+    def validate_schame(self, name, payload):
+        return validate(payload, self.schemas[name])
 
     def add_subscription(self, channel, handler):
         path = channel_to_route_path(channel)
@@ -198,7 +210,7 @@ class MicropedeClient(Topics):
         if (status != 'success'):
             response = _.flatten_deep(response)
         receiver = get_receiver(payload)
-        
+
         self.send_message(
             f'{self.app_name}/{self.name}/notify/{receiver}/{endpoint}',
             wrap_data(None, {'status': status, 'response': response},
@@ -229,6 +241,9 @@ class MicropedeClient(Topics):
 
                     f2 = self.on_trigger_msg("exit", self.safe(self.exit))
                     f2.add_done_callback(self.safe(on_done_2))
+
+                # TODO: Run futures sequentially
+                f = self.on_trigger_msg("get-schemas", self.safe(self.get_schemas))
                 f1 = self.on_trigger_msg("get-subscriptions", self.safe(self._get_subscriptions))
                 f1.add_done_callback(self.safe(on_done_1))
             else:

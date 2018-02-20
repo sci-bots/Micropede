@@ -78,8 +78,14 @@ class MicropedeAsync {
     });
   }
 
-  async getSubscriptions(receiver, timeout=DEFAULT_TIMEOUT) {
+  async getSchemas(receiver, timeout=DEFAULT_TIMEOUT) {
     /* Get the subscriptions of another plugin */
+    const payload = await this.triggerPlugin(receiver, "get-schemas", {}, timeout);
+    return payload.response;
+  }
+
+  async getSubscriptions(receiver, timeout=DEFAULT_TIMEOUT) {
+    /* Get the schemas used by the plugin */
     const payload = await this.triggerPlugin(receiver, "get-subscriptions", {}, timeout);
     return payload.response;
   }

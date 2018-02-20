@@ -1,5 +1,5 @@
 /* Base MicropedeClient class */
-
+const Ajv = require('ajv');
 const _ = require('lodash');
 const backbone = require('backbone');
 const isNode = require('detect-node');
@@ -12,6 +12,8 @@ RouteRecognizer = RouteRecognizer.default || RouteRecognizer;
 
 const MqttMessages = require('@micropede/mixins/mqtt-messages.js');
 const DEFAULT_TIMEOUT = 5000;
+
+const ajv = new Ajv({useDefaults: true});
 
 const decamelize = (str, sep='-') => {
   // https://github.com/sindresorhus/decamelize
@@ -124,6 +126,7 @@ class MicropedeClient {
     this.clientId = clientId;
     this.name = name;
     this.subscriptions = [];
+    this.schemas = {};
     this.host = host;
     this.port = port;
     this.version = version;
@@ -153,6 +156,21 @@ class MicropedeClient {
 
   sendIpcMessage(message) {
     if (this.ipcRenderer) this.ipcRenderer.send(message);
+  }
+
+  addSchema(name, schema) {
+    this.schemas[name] = schema;
+  }
+
+  validateSchema(name, payload) {
+    const validate = ajv.compile(this.schemas[name]);
+    if (!validate(payload)) throw(validate.errors);
+    return payload;
+  }
+
+  _getSchemas(payload) {
+    const LABEL = `${this.appName}::get_schemas`;
+    return this.notifySender(payload, this.schemas, 'get-schemas')
   }
 
   async addSubscription(channel, handler) {
@@ -255,6 +273,7 @@ class MicropedeClient {
           this.client = client;
           this.subscriptions = [];
           if (this.isPlugin == true) {
+            this.onTriggerMsg("get-schema", this._getSchemas.bind(this));
             this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this)).then((d) => {
               if (isNode) {
                 this.onTriggerMsg("exit", this.exit.bind(this)).then((d) => {
