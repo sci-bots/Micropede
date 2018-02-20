@@ -148,8 +148,8 @@ class MicropedeClient(Topics):
         LABEL = f'{self.app_name}::get_schemas'
         return self.notify_sender(payload, self.schemas, 'get-schemas')
 
-    def validate_schema(self, name, payload):
-        return validate(payload, self.schemas[name])
+    def validate_schema(self, payload, schema):
+        return validate(payload, schema)
 
     def add_subscription(self, channel, handler):
         path = channel_to_route_path(channel)
