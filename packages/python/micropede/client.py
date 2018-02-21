@@ -93,7 +93,6 @@ class MicropedeClient(Topics):
 
     def __init__(self, app_name, host="localhost", port=None, name=None,
                  version='0.0.0'):
-
         if (app_name is None):
             raise("app_name is undefined")
 
