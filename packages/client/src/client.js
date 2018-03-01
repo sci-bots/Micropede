@@ -126,7 +126,7 @@ class MicropedeClient {
     this.clientId = clientId;
     this.name = name;
     this.subscriptions = [];
-    this.schemas = {};
+    this.schema = {};
     this.host = host;
     this.port = port;
     this.version = version;
@@ -158,19 +158,15 @@ class MicropedeClient {
     if (this.ipcRenderer) this.ipcRenderer.send(message);
   }
 
-  addSchema(name, schema) {
-    this.schemas[name] = schema;
-  }
-
   validateSchema(name, payload) {
-    const validate = ajv.compile(this.schemas[name]);
+    const validate = ajv.compile(this.schema);
     if (!validate(payload)) throw(validate.errors);
     return payload;
   }
 
-  _getSchemas(payload) {
-    const LABEL = `${this.appName}::get_schemas`;
-    return this.notifySender(payload, this.schemas, 'get-schemas')
+  _getSchema(payload) {
+    const LABEL = `${this.appName}::get_schema`;
+    return this.notifySender(payload, this.schema, 'get-schema')
   }
 
   async addSubscription(channel, handler) {
@@ -273,7 +269,7 @@ class MicropedeClient {
           this.client = client;
           this.subscriptions = [];
           if (this.isPlugin == true) {
-            this.onTriggerMsg("get-schema", this._getSchemas.bind(this));
+            this.onTriggerMsg("get-schema", this._getSchema.bind(this));
             this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this)).then((d) => {
               if (isNode) {
                 this.onTriggerMsg("exit", this.exit.bind(this)).then((d) => {

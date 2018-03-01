@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 import time
+import types
 import random
 import re
 import urllib
@@ -58,6 +59,14 @@ def wrap_data(key, value, name, version):
     return msg
 
 
+def dump_stack(label, err):
+    if (err is None):
+        return Exception(_.flatten_deep([label, 'unknown error']))
+    if (_.get(err, 'args')):
+        return Exception(_.flatten_deep([label, err.args]))
+    else:
+        return Exception(_.flatten_deep([label, err]))
+
 def channel_to_route_path(channel):
     return channel
 
@@ -84,6 +93,9 @@ mqtt_cs_disconnecting = 2
 mqtt_cs_connect_async = 3
 
 
+def start_loop(loop):
+    loop.run_forever()
+
 class MicropedeClient(Topics):
     """
        Python based client for Micropede Application Framework
@@ -109,7 +121,7 @@ class MicropedeClient(Topics):
         self.app_name = app_name
         self.client_id = client_id
         self.name = name
-        self.schemas = {}
+        self.schema = {}
         self.subscriptions = []
         self.host = host
         self.port = port
@@ -117,9 +129,18 @@ class MicropedeClient(Topics):
         self.last_message = None
         self.loop = asyncio.get_event_loop()
         self.safe = safe(self.loop)
-        self.wait_for = self.loop.run_until_complete
         self.client = None
         self.wait_for(self.connect_client(client_id, host, port))
+
+        t = Thread(target=start_loop, args=(self.loop,))
+        t.start()
+
+    def wait_for(self, f):
+        if (isinstance(f, (asyncio.Future, types.CoroutineType) )):
+            asyncio.ensure_future(f, loop=self.loop)
+
+    def wrap(self, func):
+        return lambda *args, **kwargs: self.wait_for(func(*args, **kwargs))
 
     @property
     def is_plugin(self):
@@ -140,15 +161,12 @@ class MicropedeClient(Topics):
         return self.on(event, lambda d: self.send_message(
             channel, d, retain, qos, dup))
 
-    def add_schema(self, name, schema):
-        self.schemas[name] = schema
+    def get_schema(self, payload, name):
+        LABEL = f'{self.app_name}::get_schema'
+        return self.notify_sender(payload, self.schema, 'get-schema')
 
-    def get_schemas(self, payload, name):
-        LABEL = f'{self.app_name}::get_schemas'
-        return self.notify_sender(payload, self.schemas, 'get-schemas')
-
-    def validate_schema(self, payload, schema):
-        return validate(payload, schema)
+    def validate_schema(self, payload):
+        return validate(payload, self.schema)
 
     def add_subscription(self, channel, handler):
         path = channel_to_route_path(channel)
@@ -179,7 +197,7 @@ class MicropedeClient(Topics):
                 self.client.unsubscribe(sub)
             else:
                 self.subscriptions.append(sub)
-                self.router.add_route(path, handler)
+                self.router.add_route(path, self.wrap(handler))
                 add_sub()
 
         except Exception as e:
@@ -242,7 +260,8 @@ class MicropedeClient(Topics):
                     f2.add_done_callback(self.safe(on_done_2))
 
                 # TODO: Run futures sequentially
-                f = self.on_trigger_msg("get-schemas", self.safe(self.get_schemas))
+                f = self.on_trigger_msg("get-schema", self.safe(self.get_schema))
+                self.wait_for(self.set_state('schema', self.schema))
                 f1 = self.on_trigger_msg("get-subscriptions", self.safe(self._get_subscriptions))
                 f1.add_done_callback(self.safe(on_done_1))
             else:
