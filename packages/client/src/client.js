@@ -269,7 +269,7 @@ class MicropedeClient {
           this.client = client;
           this.subscriptions = [];
           if (this.isPlugin == true) {
-            this.onTriggerMsg("get-schema", this._getSchema.bind(this));
+            this.setState("schema", this.schema);
             this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this)).then((d) => {
               if (isNode) {
                 this.onTriggerMsg("exit", this.exit.bind(this)).then((d) => {
@@ -308,22 +308,33 @@ class MicropedeClient {
 }
 
   disconnectClient(timeout=500) {
+    let resolved = false;
     return new Promise((resolve, reject) => {
       this.subscriptions = [];
       this.router = new RouteRecognizer();
 
       if (!_.get(this, "client.connected")) {
         this.off();
-        delete this.client;
-        resolve();
+        if (resolved == false) {
+          resolved = true;
+          delete this.client;
+          resolve();
+        } else {
+          return;
+        }
       }
       else {
         if (this.client) {
 
           let end = () => {
             this.off();
-            delete this.client;
-            resolve(true);
+            if (resolved == false) {
+              resolved = true;
+              delete this.client;
+              resolve(true);
+            } else {
+              return;
+            }
           }
 
           this.client.end(true, () => {end();});
