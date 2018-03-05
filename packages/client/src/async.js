@@ -64,7 +64,6 @@ class MicropedeAsync {
 
       // Rejection case: (client times out before receiving state msg)
       timer = setTimeout( () => {
-        console.error("TIMING OUT::", topic);
         if (!done) {
           done = true;
           this.client.disconnectClient().then((d) => {
@@ -160,7 +159,6 @@ class MicropedeAsync {
       // Cause the notification to fail after given timeout
       if (!noTimeout) {
         timer = setTimeout( () => {
-          console.error("TIMING OUT::", topic);
           if (!done) {
             done = true;
             this.client.disconnectClient().then((d) => {
