@@ -34,7 +34,7 @@ class MicropedeAsync():
         label = f'{self.client.app_name}::get_state'
         topic = f'{self.client.app_name}/{sender}/state/{prop}'
         timer = None
-        future = asyncio.Future()
+        future = asyncio.Future(self.loop=self.client.loop)
 
         try:
             self.enforce_single_subscription(label)
@@ -83,7 +83,7 @@ class MicropedeAsync():
     async def call_action(self, receiver, action, val={}, msg_type='trigger',
                              timeout=DEFAULT_TIMEOUT):
         label = f'{self.client.app_name}::callAction::{msg_type}::{action}'
-        future = asyncio.Future()
+        future = asyncio.Future(loop=self.client.loop)
         # import pdb; pdb.set_trace()
 
         done = False

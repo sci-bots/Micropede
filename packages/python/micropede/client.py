@@ -7,6 +7,7 @@ import functools
 import inspect
 import json
 import os
+import platform
 import time
 import types
 import random
@@ -61,11 +62,11 @@ def wrap_data(key, value, name, version):
 
 def dump_stack(label, err):
     if (err is None):
-        return Exception(_.flatten_deep([label, 'unknown error']))
+        return _.flatten_deep([label, 'unknown error'])
     if (_.get(err, 'args')):
-        return Exception(_.flatten_deep([label, err.args]))
+        return _.flatten_deep([label, str(err.args)])
     else:
-        return Exception(_.flatten_deep([label, err]))
+        return _.flatten_deep([label, str(err)])
 
 def channel_to_route_path(channel):
     return channel
@@ -127,7 +128,7 @@ class MicropedeClient(Topics):
         self.port = port
         self.version = version
         self.last_message = None
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.new_event_loop()
         self.safe = safe(self.loop)
         self.client = None
         self.wait_for(self.connect_client(client_id, host, port))
@@ -172,7 +173,7 @@ class MicropedeClient(Topics):
         path = channel_to_route_path(channel)
         sub = channel_to_subscription(channel)
         route_name = f'{uuid.uuid1()}-{uuid.uuid4()}'
-        future = asyncio.Future()
+        future = asyncio.Future(loop=self.loop)
 
         try:
             if self.client._state != mqtt_cs_connected:
@@ -208,7 +209,7 @@ class MicropedeClient(Topics):
 
     def remove_subscription(self, channel):
         sub = channel_to_subscription(channel)
-        future = asyncio.Future()
+        future = asyncio.Future(loop=self.loop)
 
         def on_unsub(client, userdata, mid):
             self.client.on_unsubscribe = _.noop
@@ -238,7 +239,7 @@ class MicropedeClient(Topics):
 
     def connect_client(self, client_id, host, port, timeout=DEFAULT_TIMEOUT):
         self.client = mqtt.Client(client_id)
-        future = asyncio.Future()
+        future = asyncio.Future(loop=self.loop)
 
         def on_connect(client, userdata, flags, rc):
             if future.done():
@@ -284,7 +285,7 @@ class MicropedeClient(Topics):
         return future
 
     def disconnect_client(self, timeout=DEFAULT_TIMEOUT):
-        future = asyncio.Future()
+        future = asyncio.Future(loop=self.loop)
         self.subscriptions = []
         self.router = PathRouter()
 
@@ -335,7 +336,7 @@ class MicropedeClient(Topics):
             method(payload, args)
 
     def send_message(self, topic, msg={}, retain=False, qos=0, dup=False, timeout=DEFAULT_TIMEOUT):
-        future = asyncio.Future()
+        future = asyncio.Future(loop=self.loop)
         if (_.is_dict(msg) and _.get(msg, '__head__') is None):
             head = wrap_data(None, None, self.name, self.version)['__head__']
             _.set_(msg, '__head__', head)
