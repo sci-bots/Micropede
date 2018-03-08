@@ -94,8 +94,11 @@ mqtt_cs_disconnecting = 2
 mqtt_cs_connect_async = 3
 
 
-def start_loop(loop):
-    loop.run_forever()
+def start_loop(client, client_id, host, port):
+    client.loop = asyncio.new_event_loop()
+    client.safe = safe(client.loop)
+    client.wait_for(client.connect_client(client_id, host, port))
+    client.loop.run_forever()
 
 class MicropedeClient(Topics):
     """
@@ -128,12 +131,11 @@ class MicropedeClient(Topics):
         self.port = port
         self.version = version
         self.last_message = None
-        self.loop = asyncio.new_event_loop()
-        self.safe = safe(self.loop)
+        self.loop = None
+        self.safe = None
         self.client = None
-        self.wait_for(self.connect_client(client_id, host, port))
 
-        t = Thread(target=start_loop, args=(self.loop,))
+        t = Thread(target=start_loop, args=(self,client_id, host, port))
         t.start()
 
     def wait_for(self, f):
