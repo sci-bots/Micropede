@@ -14,6 +14,7 @@ import random
 import re
 import urllib
 import uuid
+import threading
 from threading import Timer, Thread
 
 from jsonschema import validate
@@ -94,12 +95,6 @@ mqtt_cs_disconnecting = 2
 mqtt_cs_connect_async = 3
 
 
-def start_loop(client, client_id, host, port):
-    client.loop = asyncio.new_event_loop()
-    client.safe = safe(client.loop)
-    client.wait_for(client.connect_client(client_id, host, port))
-    client.loop.run_forever()
-
 class MicropedeClient(Topics):
     """
        Python based client for Micropede Application Framework
@@ -108,7 +103,7 @@ class MicropedeClient(Topics):
     """
 
     def __init__(self, app_name, host="localhost", port=None, name=None,
-                 version='0.0.0'):
+                 version='0.0.0', loop=None):
         if (app_name is None):
             raise("app_name is undefined")
 
@@ -135,8 +130,26 @@ class MicropedeClient(Topics):
         self.safe = None
         self.client = None
 
-        t = Thread(target=start_loop, args=(self,client_id, host, port))
-        t.start()
+        if (loop == None):
+            # Create thread to run event loop
+            def start_loop(x):
+                x.loop = asyncio.new_event_loop()
+                x.loop.call_soon_threadsafe(x.ready_event.set)
+                x.loop.run_forever()
+
+            # Initialize loop and pass reference to main thread
+            class X(object): pass
+            X.ready_event = threading.Event()
+            t = Thread(target=start_loop, args=(X,))
+            t.start()
+            X.ready_event.wait()
+            self.loop = X.loop
+        else:
+            self.loop = loop
+        self.safe = safe(self.loop)
+
+        # Start client
+        self.wait_for(self.connect_client(client_id, host, port))
 
     def wait_for(self, f):
         if (isinstance(f, (asyncio.Future, types.CoroutineType) )):

@@ -9,12 +9,13 @@ from .client import MicropedeClient, generate_client_id, set_timeout
 DEFAULT_TIMEOUT = 5000
 
 class MicropedeAsync():
-    def __init__(self, app_name, host='localhost', port=None, version='0.0.0'):
+    def __init__(self, app_name, host='localhost', port=None, version='0.0.0', loop=None):
         try:
             if (app_name is None):
                 raise(Exception("app_name is None"))
             name = f'micropede-async-{uuid.uuid1()}-{uuid.uuid4()}'
-            self.client = MicropedeClient(app_name, host, port, name, version)
+            self.client = MicropedeClient(app_name, host=host, port=port,
+                                          name=name, version=version, loop=loop)
             self.safe = self.client.safe
             self.client.listen = _.noop
         except Exception as e:
@@ -34,7 +35,7 @@ class MicropedeAsync():
         label = f'{self.client.app_name}::get_state'
         topic = f'{self.client.app_name}/{sender}/state/{prop}'
         timer = None
-        future = asyncio.Future(self.loop=self.client.loop)
+        future = asyncio.Future(loop=self.client.loop)
 
         try:
             self.enforce_single_subscription(label)
@@ -140,7 +141,12 @@ class MicropedeAsync():
 
     def enforce_single_subscription(self, label):
         total_subscriptions = len(self.client.subscriptions)
-        default_subscriptions = self.client.default_sub_count
+        if hasattr(self.client, 'default_sub_count'):
+            default_subscriptions = self.client.default_sub_count
+        else:
+            # TODO: This is a temporary fix
+            # Should wait for micropede client to set default_sub_count
+            default_subscriptions = 2
 
         if (total_subscriptions - default_subscriptions > 1):
             msg = 'only one active sub per async client'
