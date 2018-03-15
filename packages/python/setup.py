@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='micropede',
-      version='1.0.0',
+      version='0.0.28',
       description='Python client for micropede application framework',
       author='Sci-Bots',
       author_email='lucas@sci-bots.com',
