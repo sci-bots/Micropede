@@ -15,6 +15,12 @@ const DEFAULT_TIMEOUT = 5000;
 
 const ajv = new Ajv({useDefaults: true});
 
+let request, request_require;
+try {
+  request_require = 'browser-request';
+  request = require(request_require);
+} catch (e) { request_require = 'request'}
+
 const decamelize = (str, sep='-') => {
   // https://github.com/sindresorhus/decamelize
   return str
@@ -114,6 +120,11 @@ if (!isNode) window.FlushClients = FlushClients;
 
 class MicropedeClient {
   constructor(appName, host="localhost", port, name, version='0.0.0', options, electron) {
+
+    // Dynamically load node request module (default is for webpack env)
+    if (isNode) request = require(request_require);
+
+    // Setup client:
     if (appName == undefined) throw "appName undefined";
     if (port == undefined) port = isNode ? 1883 : 8083;
     _.extend(this, backbone.Events);
@@ -218,9 +229,47 @@ class MicropedeClient {
     return this.notifySender(payload, this.subscriptions, "get-subscriptions");
   }
 
-  _loadDefaults(payload, name) {
-    console.log("LOADING DEFAULTS!!");
-    console.log({payload, name});
+  async loadDefaults(payload, name) {
+    /* Load defaults directly to storage (useful for initialization):
+      params:
+        payload = {
+          storageUrl = url to write storage to
+          [keys] = list of keys to write to storage
+          [__head__] = header information (if sending a response)
+        }
+    */
+
+    const LABEL = `${this.appName}::loadDefaults`; //console.log(LABEL);
+    try {
+
+      if (!payload.storageUrl) throw `Missing storageUrl`;
+
+      // Load defaults using ajv's schema validation:
+      let defaults = {};
+      const validate = ajv.compile(this.schema);
+      validate(defaults);
+
+      // if keys passed in payload, then pick which defaults to set using
+      // keys array
+      if (payload.keys) defaults = _.pick(defaults, payload.keys);
+
+      const baseUrl = payload.storageUrl;
+
+      // Write each key val pair to storage url:
+      let responses = await Promise.all(_.map(defaults, async (v,k) => {
+        v = JSON.stringify(v);
+        let url = `${baseUrl}?pluginName=${this.name}&key=${k}&val=${v}`;
+        return await new Promise((res, rej) => {
+          request(url, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
+        });
+      }));
+
+      return this.notifySender(payload, responses, 'load-defaults');
+    } catch (e) {
+      let stack = DumpStack(this.name, e);
+      return this.notifySender(payload, stack, 'load-defaults', 'failed');
+    }
+
   }
 
   exit (payload) {
@@ -275,7 +324,7 @@ class MicropedeClient {
           if (this.isPlugin == true) {
             this.setState("schema", this.schema);
             // Add default subscriptions for plugins:
-            await this.onTriggerMsg("load-defaults", this._loadDefaults.bind(this));
+            await this.onTriggerMsg("load-defaults", this.loadDefaults.bind(this));
             await this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this));
 
             const topic = `${this.appName}/${this.name}/notify/${this.appName}/connected`;
