@@ -218,6 +218,11 @@ class MicropedeClient {
     return this.notifySender(payload, this.subscriptions, "get-subscriptions");
   }
 
+  _loadDefaults(payload, name) {
+    console.log("LOADING DEFAULTS!!");
+    console.log({payload, name});
+  }
+
   exit (payload) {
     if (!isNode) return;
     console.log("Terminating plugin", this.name);
@@ -239,7 +244,6 @@ class MicropedeClient {
     return response;
   }
 
-
   connectClient(clientId, host, port, timeout=DEFAULT_TIMEOUT) {
 
     let options  = {clientId: clientId};
@@ -249,7 +253,7 @@ class MicropedeClient {
 
     TrackClient(client, this.isPlugin);
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       if (!isNode) {
         client.stream.socket.onerror = (e) => {
           console.log("WEBSOCKET STREAM ERROR");
@@ -262,7 +266,7 @@ class MicropedeClient {
         reject(DumpStack(this.name ,e));
       });
 
-      client.on("connect", () => {
+      client.on("connect", async () => {
         try {
           // XXX: Manually setting client.connected state
           client.connected = true;
@@ -270,23 +274,25 @@ class MicropedeClient {
           this.subscriptions = [];
           if (this.isPlugin == true) {
             this.setState("schema", this.schema);
-            this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this)).then((d) => {
-              if (isNode) {
-                this.onTriggerMsg("exit", this.exit.bind(this)).then((d) => {
-                  this.listen();
-                  this.defaultSubCount = this.subscriptions.length;
-                  client.on("close", this.exit.bind(this));
-                  resolve(true);
-                });
-              } else {
-                this.listen();
-                this.defaultSubCount = this.subscriptions.length;
-                resolve(true);
-              }
+            // Add default subscriptions for plugins:
+            await this.onTriggerMsg("load-defaults", this._loadDefaults.bind(this));
+            await this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this));
 
-              const topic = `${this.appName}/${this.name}/notify/${this.appName}/connected`
-              this.sendMessage(topic, 'true');
-            });
+            const topic = `${this.appName}/${this.name}/notify/${this.appName}/connected`;
+            this.sendMessage(topic, 'true');
+
+            if (isNode) {
+              await this.onTriggerMsg("exit", this.exit.bind(this));
+              this.listen();
+              this.defaultSubCount = this.subscriptions.length;
+              client.on("close", this.exit.bind(this));
+              resolve(true);
+            } else {
+              this.listen();
+              this.defaultSubCount = this.subscriptions.length;
+              resolve(true);
+            }
+
           } else {
             this.listen();
             this.defaultSubCount = 0;
@@ -294,9 +300,11 @@ class MicropedeClient {
           }
         } catch (e) {
           reject(DumpStack(this.name, e));
-          // this.disconnectClient();
+        } finally {
+          resolve(true);
         }
-    });
+      });
+
     client.on("message", this.onMessage.bind(this));
 
     setTimeout( () => {
