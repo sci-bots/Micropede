@@ -142,6 +142,7 @@ class MicropedeClient {
     this.port = port;
     this.version = version;
     this.options = options ? options : { resubscribe: false};
+    this.storageUrl = this.options.storageUrl;
     this.lastMessage = null;
 
     if (electron !== undefined) {
@@ -233,16 +234,17 @@ class MicropedeClient {
     /* Load defaults directly to storage (useful for initialization):
       params:
         payload = {
-          storageUrl = url to write storage to
-          [keys] = list of keys to write to storage
-          [__head__] = header information (if sending a response)
+          [storageUrl]: url to broker storage
+            (required if storageUrl not passed in options)
+          [keys]: list of keys to write to storage
+          [__head__]: header information (if sending a response)
         }
     */
 
     const LABEL = `${this.appName}::loadDefaults`; //console.log(LABEL);
     try {
-
-      if (!payload.storageUrl) throw `Missing storageUrl`;
+      let storageUrl = payload.storageUrl || this.storageUrl;
+      if (!storageUrl) throw `Missing storageUrl`;
 
       // Load defaults using ajv's schema validation:
       let defaults = {};
@@ -253,7 +255,7 @@ class MicropedeClient {
       // keys array
       if (payload.keys) defaults = _.pick(defaults, payload.keys);
 
-      const baseUrl = payload.storageUrl;
+      const baseUrl = `${storageUrl}/write-state`;
 
       // Write each key val pair to storage url:
       let responses = await Promise.all(_.map(defaults, async (v,k) => {
@@ -435,6 +437,21 @@ class MicropedeClient {
   async setState(key, value) {
     const topic = `${this.appName}/${this.name}/state/${key}`;
     await this.sendMessage(topic, value, true, 0, false);
+  }
+
+  async getState(key) {
+    try {
+      if (!this.storageUrl) throw `Require storage url to get state directly`;
+      const url = `${this.storageUrl}/get-state?pluginName=${this.name}&key=${key}`;
+      const data = JSON.parse(await new Promise((res, rej) => {
+        request(url, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
+      }));
+      if (data.error) throw data.error;
+      return data["val"];
+    } catch (e) {
+      console.error("Failed to get state for:", key);
+      throw e;
+    }
   }
 
   sendMessage(topic, msg={}, retain=false, qos=0, dup=false){
