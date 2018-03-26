@@ -17,9 +17,12 @@ const ajv = new Ajv({useDefaults: true});
 
 let request, request_require;
 try {
-  request_require = 'browser-request';
-  request = require(request_require);
-} catch (e) { request_require = 'request'}
+  // Assume web env (for webpack)
+  request = require('browser-request');
+} catch (e) {
+  // If an error throws, then must be a node env
+}
+request_require = 'request';
 
 const decamelize = (str, sep='-') => {
   // https://github.com/sindresorhus/decamelize
@@ -260,9 +263,15 @@ class MicropedeClient {
       // Write each key val pair to storage url:
       let responses = await Promise.all(_.map(defaults, async (v,k) => {
         v = JSON.stringify(v);
-        let url = `${baseUrl}?pluginName=${this.name}&key=${k}&val=${v}`;
+        let options = {
+          url: `${baseUrl}?pluginName=${this.name}&key=${k}&val=${v}`,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'X-Request-With'
+          }
+        };
         return await new Promise((res, rej) => {
-          request(url, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
+          request(options, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
         });
       }));
 
@@ -442,14 +451,20 @@ class MicropedeClient {
   async getState(key) {
     try {
       if (!this.storageUrl) throw `Require storage url to get state directly`;
-      const url = `${this.storageUrl}/get-state?pluginName=${this.name}&key=${key}`;
+      let options = {
+        url: `${this.storageUrl}/get-state?pluginName=${this.name}&key=${key}`,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'X-Request-With'
+        }
+      };
       const data = JSON.parse(await new Promise((res, rej) => {
-        request(url, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
+        request(options, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
       }));
       if (data.error) throw data.error;
       return data["val"];
     } catch (e) {
-      console.error("Failed to get state for:", key);
+      console.error(e);
       throw e;
     }
   }
