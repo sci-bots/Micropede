@@ -448,11 +448,12 @@ class MicropedeClient {
     await this.sendMessage(topic, value, true, 0, false);
   }
 
-  async getState(key) {
+  async getState(key, pluginName) {
+    if (pluginName == undefined) pluginName = this.name;
     try {
       if (!this.storageUrl) throw `Require storage url to get state directly`;
       let options = {
-        url: `${this.storageUrl}/get-state?pluginName=${this.name}&key=${key}`,
+        url: `${this.storageUrl}/get-state?pluginName=${pluginName}&key=${key}`,
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Headers': 'X-Request-With'
