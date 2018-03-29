@@ -382,8 +382,8 @@ class MicropedeClient {
       this.router = new RouteRecognizer();
 
       if (!_.get(this, "client.connected")) {
-        this.off();
         if (resolved == false) {
+          this.off();
           resolved = true;
           delete this.client;
           resolve();
@@ -395,8 +395,8 @@ class MicropedeClient {
         if (this.client) {
 
           let end = () => {
-            this.off();
             if (resolved == false) {
+              this.off();
               resolved = true;
               delete this.client;
               resolve(true);
