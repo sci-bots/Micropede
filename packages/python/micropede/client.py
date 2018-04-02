@@ -184,6 +184,9 @@ class MicropedeClient(Topics):
     def validate_schema(self, payload):
         return validate(payload, self.schema)
 
+    def ping(self, payload, params):
+        return self.notify_sender(payload, "pong", "ping")
+
     def add_subscription(self, channel, handler):
         path = channel_to_route_path(channel)
         sub = channel_to_subscription(channel)
@@ -276,6 +279,7 @@ class MicropedeClient(Topics):
                     f2.add_done_callback(self.safe(on_done_2))
 
                 # TODO: Run futures sequentially
+                self.on_trigger_msg("ping", self.safe(self.ping))
                 f = self.on_trigger_msg("get-schema", self.safe(self.get_schema))
                 self.wait_for(self.set_state('schema', self.schema))
                 f1 = self.on_trigger_msg("get-subscriptions", self.safe(self._get_subscriptions))

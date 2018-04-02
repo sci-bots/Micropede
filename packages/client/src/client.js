@@ -233,6 +233,11 @@ class MicropedeClient {
     return this.notifySender(payload, this.subscriptions, "get-subscriptions");
   }
 
+  ping(payload, params) {
+    const LABEL = `${this.appName}::ping`;
+    return this.notifySender(payload, "pong", "ping");
+  }
+
   async loadDefaults(payload, name) {
     /* Load defaults directly to storage (useful for initialization):
       params:
@@ -337,6 +342,7 @@ class MicropedeClient {
             // Add default subscriptions for plugins:
             await this.onTriggerMsg("load-defaults", this.loadDefaults.bind(this));
             await this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this));
+            await this.onTriggerMsg("ping", this.ping.bind(this));
 
             const topic = `${this.appName}/${this.name}/notify/${this.appName}/connected`;
             this.sendMessage(topic, 'true');
