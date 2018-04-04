@@ -154,7 +154,6 @@ class MicropedeClient {
     }
 
     this.connectClient(clientId, host, port).then((d) => {
-      console.log("Client connected!", this.name, this.clientId);
       this.trigger("connected");
     });
   }
