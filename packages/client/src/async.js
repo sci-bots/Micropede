@@ -104,6 +104,10 @@ class MicropedeAsync {
 
   async triggerPlugin(receiver, action, val={}, timeout=DEFAULT_TIMEOUT) {
     /* Call trigger on another plugin */
+    if (!_.isPlainObject(val)) {
+      let msg = {data: val};
+      val = msg;
+    }
     const result = await this.callAction(receiver, action, val,
       "trigger", timeout);
     return result;

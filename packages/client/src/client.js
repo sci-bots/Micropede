@@ -153,11 +153,10 @@ class MicropedeClient {
       this.ipcRenderer = ipcRenderer;
     }
 
-    try {
-      this.connectClient(clientId, host, port);
-    } catch (e) {
-      console.error(e);
-    }
+    this.connectClient(clientId, host, port).then((d) => {
+      console.log("Client connected!", this.name, this.clientId);
+      this.trigger("connected");
+    });
   }
 
   get isPlugin() { return !_.isEqual(this.listen, _.noop)}
@@ -189,7 +188,7 @@ class MicropedeClient {
     const sub = ChannelToSubscription(channel);
     const routeName = `${uuidv1()}-${uuidv4()}`;
     try {
-      if (!this.client.connected) {
+      if (!_.get(this, 'client.connected')) {
         throw `Failed to add subscription.
         Client is not connected (${this.name}, ${channel})`;
       }
@@ -333,6 +332,7 @@ class MicropedeClient {
 
       client.on("connect", async () => {
         try {
+          this.trigger("connected");
           // XXX: Manually setting client.connected state
           client.connected = true;
           this.client = client;
@@ -471,7 +471,7 @@ class MicropedeClient {
       if (data.error) throw data.error;
       return data["val"];
     } catch (e) {
-      console.error(e);
+      console.error(e, {key, pluginName});
       throw e;
     }
   }
@@ -494,5 +494,9 @@ class MicropedeClient {
   }
 
 }
-
-module.exports = {MicropedeClient, GenerateClientId, GetReceiver, DumpStack, WrapData};
+module.exports = MicropedeClient;
+module.exports.MicropedeClient = MicropedeClient;
+module.exports.GenerateClientId = GenerateClientId;
+module.exports.GetReceiver = GetReceiver;
+module.exports.DumpStack = DumpStack;
+module.exports.WrapData = WrapData;
