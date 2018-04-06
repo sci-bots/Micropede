@@ -236,10 +236,41 @@ class MicropedeClient {
     return this.notifySender(payload, "pong", "ping");
   }
 
+  async writeToStorage(key, val, options={}) {
+    /* Force [another] plugins state to change (ignoring validation)
+      key: str
+      val: any
+      options:
+        storageUrl: url to whatever is handling broker storage
+        plugin: name of plugin to modify (the name of the client by default)
+    */
+
+    let storageUrl = options.storageUrl || this.storageUrl;
+    let plugin = options.pluginName || this.name;
+
+    if (!storageUrl) throw `Missing storageUrl`;
+
+    // Setup message to send to http server:
+    let req = {
+      url: `${storageUrl}/set-state`,
+      method: 'POST',
+      json: true,
+      body: {plugin, key, val},
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'X-Request-With'
+      }
+    };
+
+    // Return request promise:
+    return await new Promise((res, rej) => {
+      request(req, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
+    });
+  }
+
   async loadDefaults(payload, name) {
     /* Load defaults directly to storage (useful for initialization):
-      params:
-        payload = {
+        payload:
           [storageUrl]: url to broker storage
             (required if storageUrl not passed in options)
           [keys]: list of keys to write to storage
@@ -261,21 +292,9 @@ class MicropedeClient {
       // keys array
       if (payload.keys) defaults = _.pick(defaults, payload.keys);
 
-      const baseUrl = `${storageUrl}/write-state`;
-
       // Write each key val pair to storage url:
       let responses = await Promise.all(_.map(defaults, async (v,k) => {
-        v = JSON.stringify(v);
-        let options = {
-          url: `${baseUrl}?pluginName=${this.name}&key=${k}&val=${v}`,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'X-Request-With'
-          }
-        };
-        return await new Promise((res, rej) => {
-          request(options, (e, b, d) => {if (e) {rej(e)} else {res(d)}} );
-        });
+        return await this.writeToStorage(k, v, {storageUrl});
       }));
 
       return this.notifySender(payload, responses, 'load-defaults');
@@ -448,7 +467,19 @@ class MicropedeClient {
     }
   }
 
+  async dangerouslySetState(key, value, plugin) {
+    /* Dangerously set the state of another plugin (skip validation)
+      key: str
+      value: any
+      plugin: str
+    */
+    plugin = plugin || this.name;
+    const topic = `${this.appName}/${plugin}/state/${key}`;
+    await this.sendMessage(topic, value, true, 0, false);
+  }
+
   async setState(key, value) {
+    /* Publish updated state*/
     const topic = `${this.appName}/${this.name}/state/${key}`;
     await this.sendMessage(topic, value, true, 0, false);
   }
