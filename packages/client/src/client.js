@@ -177,11 +177,6 @@ class MicropedeClient {
     return payload;
   }
 
-  _getSchema(payload) {
-    const LABEL = `${this.appName}::get_schema`;
-    return this.notifySender(payload, this.schema, 'get-schema')
-  }
-
   async addSubscription(channel, handler) {
     const path = ChannelToRoutePath(channel);
     const sub = ChannelToSubscription(channel);
@@ -226,6 +221,11 @@ class MicropedeClient {
     });
   }
 
+  _getSchema(payload) {
+    const LABEL = `${this.appName}::get_schema`;
+    return this.notifySender(payload, this.schema, 'get-schema')
+  }
+
   _getSubscriptions(payload, name) {
     const LABEL = `${this.appName}::getSubscriptions`;
     return this.notifySender(payload, this.subscriptions, "get-subscriptions");
@@ -234,6 +234,30 @@ class MicropedeClient {
   ping(payload, params) {
     const LABEL = `${this.appName}::ping`;
     return this.notifySender(payload, "pong", "ping");
+  }
+
+  async listPlugins(options={}) {
+    /* Get list of all plugins that have written to state
+      options:
+        storageUrl: url to whatever is handling broker storage
+    */
+    let storageUrl = options.storageUrl || this.storageUrl;
+    if (!storageUrl) throw `Missing storageUrl`;
+
+    // Setup message to send to http server:
+    let req = {
+      url: `${storageUrl}/list-micropede-plugins`,
+      method: 'GET',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'X-Request-With'
+      }
+    };
+
+    // Return request promise:
+    return await new Promise((res, rej) => {
+      request(req, (e, b, d) => {if (e) {rej(e)} else {res(JSON.parse(d))}} );
+    });
   }
 
   async writeToStorage(key, val, options={}) {
@@ -359,6 +383,7 @@ class MicropedeClient {
             this.setState("schema", this.schema);
             // Add default subscriptions for plugins:
             await this.onTriggerMsg("load-defaults", this.loadDefaults.bind(this));
+            await this.onTriggerMsg("get-schema", this._getSchema.bind(this));
             await this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this));
             await this.onTriggerMsg("ping", this.ping.bind(this));
 
