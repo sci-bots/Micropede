@@ -143,7 +143,6 @@ class MicropedeClient {
     this.schema = {};
     this.host = host;
     this.port = port;
-    this.version = version;
     this.options = options ? options : { resubscribe: false};
     this.storageUrl = this.options.storageUrl;
     this.lastMessage = null;
@@ -344,7 +343,7 @@ class MicropedeClient {
     if (!receiver) {return response}
     this.sendMessage(
       `${this.appName}/${this.name}/notify/${receiver}/${endpoint}`,
-      WrapData(null, {status, response}, this.name, this.version)
+      WrapData(null, {status, response}, this.name, this.constructor._version())
     );
 
     return response;
@@ -381,6 +380,7 @@ class MicropedeClient {
           this.subscriptions = [];
           if (this.isPlugin == true) {
             this.setState("schema", this.schema);
+            this.setState("version", this.constructor._version());
             // Add default subscriptions for plugins:
             await this.onTriggerMsg("load-defaults", this.loadDefaults.bind(this));
             await this.onTriggerMsg("get-schema", this._getSchema.bind(this));
@@ -534,7 +534,7 @@ class MicropedeClient {
   sendMessage(topic, msg={}, retain=false, qos=0, dup=false){
 
     if (_.isPlainObject(msg) && msg.__head__ == undefined) {
-      msg.__head__ = WrapData(null, null, this.name, this.version).__head__;
+      msg.__head__ = WrapData(null, null, this.name, this.constructor._version()).__head__;
     }
 
     const message = JSON.stringify(msg);
@@ -546,6 +546,16 @@ class MicropedeClient {
         resolve();
       });
     });
+  }
+
+  static _version() {
+    // Override me!
+    return "0.0.0"
+  }
+
+  static _updateVersion(state, storageVersion, pluginVersion) {
+    // Override me!
+    return state;
   }
 
 }
