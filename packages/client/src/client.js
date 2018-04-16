@@ -382,6 +382,7 @@ class MicropedeClient {
             this.setState("schema", this.schema);
             this.setState("version", this.constructor._version());
             // Add default subscriptions for plugins:
+            await this.onTriggerMsg("update-version", this.updateVersion.bind(this))
             await this.onTriggerMsg("load-defaults", this.loadDefaults.bind(this));
             await this.onTriggerMsg("get-schema", this._getSchema.bind(this));
             await this.onTriggerMsg("get-subscriptions", this._getSubscriptions.bind(this));
@@ -546,6 +547,20 @@ class MicropedeClient {
         resolve();
       });
     });
+  }
+
+  updateVersion(payload, params) {
+    /* Calls static updateVerion method in the constructor ,
+       and returns the modified state
+    */
+    try {
+      let {state, storageVersion, pluginVersion} = payload;
+      state = this.constructor._updateVersion(state, storageVersion, pluginVersion);
+      return this.notifySender(payload, state, 'update-version');
+    } catch (e) {
+      let stack = DumpStack(this.name, e);
+      return this.notifySender(payload, stack, 'update-version', 'failed');
+    }
   }
 
   static _version() {
