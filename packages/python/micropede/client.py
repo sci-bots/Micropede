@@ -280,6 +280,7 @@ class MicropedeClient(Topics):
 
                 # TODO: Run futures sequentially
                 self.on_trigger_msg("ping", self.safe(self.ping))
+                self.on_trigger_msg("update-version", self.safe(self.update_version))
                 f = self.on_trigger_msg("get-schema", self.safe(self.get_schema))
                 self.wait_for(self.set_state('schema', self.schema))
                 f1 = self.on_trigger_msg("get-subscriptions", self.safe(self._get_subscriptions))
@@ -380,3 +381,24 @@ class MicropedeClient(Topics):
     async def set_state(self, key, value):
         topic = f'{self.app_name}/{self.name}/state/{key}';
         await self.send_message(topic, value, True, 0, False)
+
+    def update_version(self, payload, params):
+        try:
+            state = payload["state"]
+            storage_version = payload["storageVersion"]
+            plugin_version = payload["pluginVersion"]
+            state = self._update_version(state, storage_version, plugin_version)
+            return self.notify_sender(payload, state, "update-version")
+        except Exception as e:
+            stack = dump_stack(self.name, e)
+            return self.notify_sender(payload, stack, "update-version", "failed")
+
+    @staticmethod
+    def _version(cls):
+        # Override Me!
+        return "0.0.0"
+
+    @staticmethod
+    def _update_version(cls, state, storageVersion, pluginVersion):
+        # Override Me!
+        return state
