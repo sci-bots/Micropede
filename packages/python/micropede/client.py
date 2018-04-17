@@ -378,6 +378,17 @@ class MicropedeClient(Topics):
 
         return future
 
+    async def dangerously_set_state(self, key, value, plugin):
+        """
+        Dangerously set the state of another plugin (skip validation)
+        key: str
+        value: any
+        plugin: str
+        """
+        plugin = plugin or self.name
+        topic = f'{self.app_name}/{plugin}/state/{key}'
+        await self.send_message(topic, value, True, 0, False)
+
     async def set_state(self, key, value):
         topic = f'{self.app_name}/{self.name}/state/{key}';
         await self.send_message(topic, value, True, 0, False)
